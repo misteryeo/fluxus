@@ -273,40 +273,22 @@ export function useEditorState() {
 
     summarize: useCallback(async () => {
       try {
-        // Deterministic extraction from PR text and ticket text
         const prText = state.manualInput.prText || '';
         const ticketText = state.manualInput.ticketText || '';
-        
-        // Extract technical summary from PR text
-        // Split into sentences, take first 3 that contain change keywords
-        const lines = prText
-          .split(/[.!?]+\s+/)
-          .map(s => s.trim())
-          .filter(Boolean);
-        
-        const changeKeywords = [
-          'changed', 'added', 'updated', 'removed', 'refactor', 'fix', 'fixed',
-          'endpoint', 'route', 'component', 'schema', 'implemented', 'created',
-          'modified', 'replaced', 'improved', 'enhanced', 'optimized'
-        ];
-        
-        const relevantLines = lines.filter(line => {
-          const lower = line.toLowerCase();
-          return changeKeywords.some(keyword => lower.includes(keyword));
-        }).slice(0, 3);
-        
-        const technical = relevantLines.length > 0 
-          ? relevantLines.join('\n') 
-          : '[TBD]';
-        
-        // Extract value summary from ticket text (truncate to 280 chars)
-        const value = ticketText.trim().slice(0, 280) || '[TBD]';
-        
+        const res = await fetch('/api/summarize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prText, ticketText }),
+        });
+        if (!res.ok) {
+          throw new Error('Summarize request failed');
+        }
+        const data: { technical: string; value: string } = await res.json();
         setState(prev => ({
           ...prev,
           summaries: {
-            technical,
-            value,
+            technical: data.technical || '[TBD]',
+            value: (data.value || '').slice(0, 280) || '[TBD]',
           },
           status: {
             ...prev.status,
@@ -371,50 +353,38 @@ export function useEditorState() {
 
     generateAll: useCallback(async () => {
       const audiences: Audience[] = ['internal', 'customer', 'investor', 'public'];
-      const unlockedAudiences = audiences.filter(audience => !state.locks[audience]);
-      
-      // Compile templates directly for each unlocked audience
-      const { compileWithDiagnostics } = await import('@/lib/templateEngine');
       const context = buildContext(state);
-      
-      for (const audience of unlockedAudiences) {
-        try {
-          const template = state.templates[audience];
-          const result = compileWithDiagnostics(template.body, context);
-          
-          // Enforce length limit
-          let finalText = result.text;
-          if (finalText.length > template.lengthLimit) {
-            finalText = finalText.slice(0, template.lengthLimit - 3) + '...';
-          }
-          
-          setState(prev => {
-            // Update diagnostics when draft changes
-            const missing = scanTBD(finalText, audience);
-            const unknownTokens = result.unknownTokens || [];
-            
-            return {
-              ...prev,
-              drafts: {
-                ...prev.drafts,
-                [audience]: finalText,
-              },
-              diagnostics: {
-                ...prev.diagnostics,
-                [audience]: { missing, unknownTokens },
-              },
-              status: {
-                ...prev.status,
-                lastGenerated: {
-                  ...prev.status.lastGenerated,
-                  [audience]: new Date().toLocaleTimeString(),
-                },
-              },
-            };
-          });
-        } catch (error) {
-          console.error(`Generate error for ${audience}:`, error);
+      try {
+        const res = await fetch('/api/generate-drafts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            context,
+            templates: state.templates,
+            locks: state.locks,
+          }),
+        });
+        if (!res.ok) {
+          throw new Error('Generate drafts request failed');
         }
+        const data: { drafts: Record<Audience, { text: string; unknownTokens?: string[] }> } = await res.json();
+        setState(prev => {
+          const next = { ...prev } as EditorState;
+          for (const audience of audiences) {
+            if (prev.locks[audience]) continue; // Respect locks
+            const text = data.drafts?.[audience]?.text ?? '';
+            const finalText = text;
+            next.drafts[audience] = finalText;
+            const missing = scanTBD(finalText, audience);
+            const unknownTokens = data.drafts?.[audience]?.unknownTokens || [];
+            next.diagnostics[audience] = { missing, unknownTokens };
+            next.status.lastGenerated[audience] = new Date().toLocaleTimeString();
+          }
+          return next;
+        });
+      } catch (error) {
+        console.error('Generate drafts error:', error);
+        throw error;
       }
     }, [state]),
 

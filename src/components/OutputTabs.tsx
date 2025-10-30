@@ -60,6 +60,30 @@ export default function OutputTabs({ state, actions, currentTab, onTabChange }: 
         </p>
       </div>
 
+      {/* Summaries Editor */}
+      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Technical Summary</label>
+            <textarea
+              value={state.summaries.technical}
+              onChange={(e) => actions.setSummaries({ technical: e.target.value })}
+              placeholder="Technical changes will appear here after Summarize..."
+              className="w-full h-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm leading-relaxed"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Value Summary</label>
+            <textarea
+              value={state.summaries.value}
+              onChange={(e) => actions.setSummaries({ value: e.target.value })}
+              placeholder="Customer value will appear here after Summarize..."
+              className="w-full h-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm leading-relaxed"
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Tab Navigation */}
       <div className="px-6 pt-4">
         <div className="flex space-x-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
