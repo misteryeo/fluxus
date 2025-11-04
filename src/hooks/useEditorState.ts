@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Audience } from '@/types/audience';
 import { EditorState, EditorActions } from '@/types/context';
 import { getDefaultTemplates } from '@/lib/defaultTemplates';
@@ -70,28 +70,31 @@ const defaultState: EditorState = {
 export function useEditorState() {
   const [state, setState] = useState<EditorState>(defaultState);
   const [isHydrated, setIsHydrated] = useState(false);
+  const manualInputRef = useRef<EditorState['manualInput']>(defaultState.manualInput);
 
   // Debounced save to localStorage
-  const saveToStorage = useCallback(
-    debounce((currentState: EditorState) => {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(currentState));
-      } catch (error) {
-        console.warn('Failed to save to localStorage:', error);
-      }
-    }, 500),
+  const saveToStorage = useMemo(
+    () =>
+      debounce((currentState: EditorState) => {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(currentState));
+        } catch (error) {
+          console.warn('Failed to save to localStorage:', error);
+        }
+      }, 500),
     []
   );
 
   // Debounced save templates to localStorage
-  const saveTemplatesToStorage = useCallback(
-    debounce((templates: EditorState['templates']) => {
-      try {
-        localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(templates));
-      } catch (error) {
-        console.warn('Failed to save templates to localStorage:', error);
-      }
-    }, 500),
+  const saveTemplatesToStorage = useMemo(
+    () =>
+      debounce((templates: EditorState['templates']) => {
+        try {
+          localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(templates));
+        } catch (error) {
+          console.warn('Failed to save templates to localStorage:', error);
+        }
+      }, 500),
     []
   );
 
@@ -162,12 +165,17 @@ export function useEditorState() {
       }
       
       setState(loadedState);
+      manualInputRef.current = loadedState.manualInput;
     } catch (error) {
       console.warn('Failed to load from localStorage:', error);
     } finally {
       setIsHydrated(true);
     }
   }, []);
+
+  useEffect(() => {
+    manualInputRef.current = state.manualInput;
+  }, [state.manualInput]);
 
   // Save to localStorage whenever state changes (after hydration)
   useEffect(() => {
@@ -188,9 +196,14 @@ export function useEditorState() {
 
   const actions: EditorActions = {
     setManualInput: useCallback((partial) => {
+      manualInputRef.current = {
+        prText: partial.prText !== undefined ? partial.prText : (manualInputRef.current?.prText ?? ''),
+        ticketText: partial.ticketText !== undefined ? partial.ticketText : (manualInputRef.current?.ticketText ?? ''),
+      };
+
       setState(prev => ({
         ...prev,
-        manualInput: { ...prev.manualInput, ...partial },
+        manualInput: manualInputRef.current,
       }));
     }, []),
 
