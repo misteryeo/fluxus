@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
+import { useReview } from '@/hooks/useFluxusMake';
 
 interface ReleaseHeaderProps {
   releaseName: string;
@@ -25,12 +26,15 @@ export function ReleaseHeader({
   releaseName,
   version,
   environment,
-  status,
+  status: statusProp,
   lastUpdated,
   owner,
   approvers = [],
   onRequestReview
 }: ReleaseHeaderProps) {
+  const { state: reviewState } = useReview();
+  const status = (reviewState.status || statusProp) as 'draft' | 'in-review' | 'changes-requested' | 'approved' | 'scheduled' | 'published' | 'failed';
+  
   const statusColors = {
     draft: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400',
     'in-review': 'bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300',

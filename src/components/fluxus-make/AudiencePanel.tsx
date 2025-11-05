@@ -11,9 +11,10 @@ import { audienceOutputs } from '../../lib/mockData';
 
 interface AudiencePanelProps {
   onCopyContent: (audience: string) => void;
+  drafts?: Record<'internal'|'customers'|'changelog'|'linkedin'|'email'|'investor', string>;
 }
 
-export function AudiencePanel({ onCopyContent }: AudiencePanelProps) {
+export function AudiencePanel({ onCopyContent, drafts }: AudiencePanelProps) {
   const [activeTab, setActiveTab] = useState('internal');
   const [copied, setCopied] = useState<string | null>(null);
   const [showDiff, setShowDiff] = useState(false);
@@ -23,7 +24,10 @@ export function AudiencePanel({ onCopyContent }: AudiencePanelProps) {
   });
 
   const handleCopy = (audience: string) => {
-    navigator.clipboard.writeText(audienceOutputs[audience as keyof typeof audienceOutputs]);
+    // Map 'investors' to 'investor' for drafts key
+    const draftKey = audience === 'investors' ? 'investor' : audience as 'internal'|'customers'|'changelog'|'linkedin'|'email'|'investor';
+    const content = drafts?.[draftKey] || audienceOutputs[audience as keyof typeof audienceOutputs] || '';
+    navigator.clipboard.writeText(content);
     setCopied(audience);
     onCopyContent(audience);
     setTimeout(() => setCopied(null), 2000);
@@ -67,14 +71,19 @@ export function AudiencePanel({ onCopyContent }: AudiencePanelProps) {
           </div>
         </div>
 
-        {audiences.map((audience) => (
+        {audiences.map((audience) => {
+          const draftKey = audience.id === 'investors' ? 'investor' : audience.id as 'internal'|'customers'|'changelog'|'linkedin'|'email'|'investor';
+          const content = drafts?.[draftKey] || audienceOutputs[audience.id as keyof typeof audienceOutputs] || '';
+          const charCount = content.length;
+          
+          return (
           <TabsContent key={audience.id} value={audience.id} className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Badge variant="secondary">
-                  {audience.count} {audience.limit ? `/ ${audience.limit}` : ''} characters
+                  {charCount} {audience.limit ? `/ ${audience.limit}` : ''} characters
                 </Badge>
-                {audience.limit && audience.count > audience.limit * 0.9 && (
+                {audience.limit && charCount > audience.limit * 0.9 && (
                   <Badge variant="destructive">Near limit</Badge>
                 )}
               </div>
@@ -110,7 +119,7 @@ export function AudiencePanel({ onCopyContent }: AudiencePanelProps) {
             <div className="relative">
               <Textarea
                 className="min-h-[400px] resize-none font-mono text-sm"
-                value={audienceOutputs[audience.id as keyof typeof audienceOutputs]}
+                value={content}
                 readOnly={!showDiff}
               />
               
@@ -147,7 +156,8 @@ export function AudiencePanel({ onCopyContent }: AudiencePanelProps) {
               </Button>
             </div>
           </TabsContent>
-        ))}
+          );
+        })}
       </Tabs>
     </div>
   );

@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { ScrollArea } from '../ui/scroll-area';
 import { PR, Asset } from '../../types';
 import { toast } from 'sonner';
+import { useDrafts, useReview, publish as publishApi } from '@/hooks/useFluxusMake';
 
 interface AssembleModeProps {
   selectedPRs: PR[];
@@ -21,7 +22,14 @@ interface AssembleModeProps {
 
 export function AssembleMode({ selectedPRs, assets, onRemoveAsset, onUploadAsset }: AssembleModeProps) {
   const [activeStep, setActiveStep] = useState('source');
-  const [releaseStatus, setReleaseStatus] = useState<'draft' | 'in-review' | 'approved' | 'published'>('draft');
+  const { drafts, regenerate } = useDrafts();
+  const { state: reviewState, act: reviewAct } = useReview();
+  
+  // Map review status to release status
+  const releaseStatus = (reviewState.status === 'draft' ? 'draft' :
+    reviewState.status === 'in-review' ? 'in-review' :
+    reviewState.status === 'approved' ? 'approved' :
+    'published') as 'draft' | 'in-review' | 'approved' | 'published';
 
   const steps = [
     { id: 'source', label: 'Source', number: 1 },
@@ -31,31 +39,69 @@ export function AssembleMode({ selectedPRs, assets, onRemoveAsset, onUploadAsset
     { id: 'publish', label: 'Publish', number: 5 }
   ];
 
-  const handleRegenerate = () => {
-    toast.success('Regenerating outputs with updated tone settings...');
+  const handleRegenerate = async () => {
+    try {
+      // Construct context input from selected PRs
+      const contextInput = {
+        prs: selectedPRs,
+        assets: assets
+      };
+      
+      // Create a basic summary from PRs
+      const coreSummary = selectedPRs.map(pr => `#${pr.number}: ${pr.title}`).join('\n');
+      
+      // Regenerate drafts
+      await regenerate({
+        contextInput,
+        coreSummary,
+        audiences: ['internal', 'customers', 'changelog', 'linkedin', 'email', 'investors']
+      });
+      
+      toast.success('Regenerating outputs with updated tone settings...');
+    } catch (error) {
+      toast.error('Failed to regenerate drafts');
+    }
   };
 
   const handleCopyContent = (audience: string) => {
     toast.success(`Copied ${audience} content to clipboard`);
   };
 
-  const handleRequestReview = () => {
-    setReleaseStatus('in-review');
-    toast.success('Review request sent to team');
+  const handleRequestReview = async () => {
+    try {
+      await reviewAct('request-review');
+      toast.success('Review request sent to team');
+    } catch (error) {
+      toast.error('Failed to request review');
+    }
   };
 
-  const handleApprove = () => {
-    setReleaseStatus('approved');
-    toast.success('Release approved! Ready to publish');
+  const handleApprove = async () => {
+    try {
+      await reviewAct('approve');
+      toast.success('Release approved! Ready to publish');
+    } catch (error) {
+      toast.error('Failed to approve release');
+    }
   };
 
-  const handleRequestChanges = () => {
-    toast.info('Changes requested');
+  const handleRequestChanges = async () => {
+    try {
+      await reviewAct('request-changes');
+      toast.info('Changes requested');
+    } catch (error) {
+      toast.error('Failed to request changes');
+    }
   };
 
-  const handlePublish = () => {
-    setReleaseStatus('published');
-    toast.success('Release published successfully!');
+  const handlePublish = async (selectedChannels: Record<string, boolean>) => {
+    try {
+      await publishApi(selectedChannels, drafts);
+      await reviewAct('publish');
+      toast.success('Release published successfully!');
+    } catch (error) {
+      toast.error('Failed to publish release');
+    }
   };
 
   const handleSchedule = (date: string, time: string) => {
@@ -139,7 +185,7 @@ export function AssembleMode({ selectedPRs, assets, onRemoveAsset, onUploadAsset
                       Tailored content for each audience. Edit, customize settings, and copy when ready.
                     </p>
                   </div>
-                  <AudiencePanel onCopyContent={handleCopyContent} />
+                  <AudiencePanel onCopyContent={handleCopyContent} drafts={drafts} />
                 </div>
               </TabsContent>
 

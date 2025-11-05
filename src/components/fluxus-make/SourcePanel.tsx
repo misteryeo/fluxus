@@ -14,7 +14,7 @@ interface SourcePanelProps {
   onUploadAsset: () => void;
 }
 
-export function SourcePanel({ selectedPRs, assets, onRemoveAsset, onUploadAsset }: SourcePanelProps) {
+export function SourcePanel({ selectedPRs = [], assets = [], onRemoveAsset, onUploadAsset }: SourcePanelProps) {
   return (
     <div className="space-y-6">
       <div>

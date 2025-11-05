@@ -16,7 +16,7 @@ import {
 } from '../ui/select';
 
 interface PublishPanelProps {
-  onPublish: () => void;
+  onPublish: (channels: Record<string, boolean>) => void;
   onSchedule: (date: string, time: string) => void;
 }
 
@@ -91,7 +91,7 @@ export function PublishPanel({ onPublish, onSchedule }: PublishPanelProps) {
         docs: 'success'
       });
     }, 2000);
-    onPublish();
+    onPublish(channels);
     if (publishMode === 'scheduled') {
       onSchedule(scheduleDate, scheduleTime);
     }

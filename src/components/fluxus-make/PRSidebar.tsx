@@ -12,16 +12,22 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
+import { usePRs } from '@/hooks/useFluxusMake';
 
 interface PRSidebarProps {
-  prs: PR[];
-  onPRToggle: (prId: string) => void;
-  onCreateRelease: () => void;
-  selectedRepo: string;
-  selectedBranch: string;
+  onPRToggle?: (prId: string) => void;
+  onCreateRelease?: () => void;
+  selectedRepo?: string;
+  selectedBranch?: string;
 }
 
-export function PRSidebar({ prs, onPRToggle, onCreateRelease, selectedRepo, selectedBranch }: PRSidebarProps) {
+export function PRSidebar({ 
+  onPRToggle = () => {}, 
+  onCreateRelease = () => {}, 
+  selectedRepo = 'fluxus/platform', 
+  selectedBranch = 'main' 
+}: PRSidebarProps = {}) {
+  const { prs, loading } = usePRs();
   const selectedCount = prs.filter(pr => pr.selected).length;
   const activeFilters = ['merged', 'feature'];
 
@@ -86,14 +92,22 @@ export function PRSidebar({ prs, onPRToggle, onCreateRelease, selectedRepo, sele
 
       <ScrollArea className="flex-1">
         <div className="p-2">
-          {prs.map((pr) => (
-            <PRRow key={pr.id} pr={pr} onToggle={() => onPRToggle(pr.id)} />
-          ))}
+          {loading ? (
+            <>
+              {[...Array(5)].map((_, i) => (
+                <PRRowSkeleton key={i} />
+              ))}
+            </>
+          ) : (
+            prs.map((pr) => (
+              <PRRow key={pr.id} pr={pr} onToggle={() => onPRToggle(pr.id)} />
+            ))
+          )}
         </div>
       </ScrollArea>
 
       <div className="p-4 border-t border-neutral-200 dark:border-neutral-800 text-xs text-neutral-500 dark:text-neutral-400">
-        {prs.length} PRs • {selectedCount} selected
+        {loading ? 'Loading...' : `${prs.length} PRs • ${selectedCount} selected`}
       </div>
     </div>
   );
@@ -135,3 +149,24 @@ function PRRow({ pr, onToggle }: { pr: PR; onToggle: () => void }) {
     </div>
   );
 }
+
+function PRRowSkeleton() {
+  return (
+    <div className="p-3 rounded-xl mb-1 border border-transparent">
+      <div className="flex items-start gap-2.5">
+        <div className="w-4 h-4 mt-0.5 rounded bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+        <div className="flex-1 min-w-0">
+          <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded mb-1 animate-pulse" style={{ width: '85%' }} />
+          <div className="h-3 bg-neutral-200 dark:bg-neutral-700 rounded mb-2 animate-pulse" style={{ width: '60%' }} />
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 rounded-full bg-neutral-200 dark:bg-neutral-700 animate-pulse" />
+            <div className="h-3 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse" style={{ width: '60px' }} />
+            <div className="h-3 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse" style={{ width: '50px' }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default PRSidebar;
