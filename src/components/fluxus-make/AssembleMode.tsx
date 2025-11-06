@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ReleaseHeader } from './ReleaseHeader';
 import { SourcePanel } from './SourcePanel';
 import { SummaryPanel } from './SummaryPanel';
@@ -11,19 +11,33 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { ScrollArea } from '../ui/scroll-area';
 import { PR, Asset } from '../../types';
 import { toast } from 'sonner';
-import { useDrafts, useReview, publish as publishApi } from '@/hooks/useFluxusMake';
+import { useDrafts, useReview } from '@/hooks/useFluxusMake';
 
 interface AssembleModeProps {
-  selectedPRs: PR[];
+  selectedPRs?: PR[];
   assets: Asset[];
   onRemoveAsset: (assetId: string) => void;
   onUploadAsset: () => void;
 }
 
-export function AssembleMode({ selectedPRs, assets, onRemoveAsset, onUploadAsset }: AssembleModeProps) {
+export function AssembleMode({ selectedPRs = [], assets, onRemoveAsset, onUploadAsset }: AssembleModeProps) {
   const [activeStep, setActiveStep] = useState('source');
+  const [coreSummary, setCoreSummary] = useState('');
+  const generatedSummaryRef = useRef('');
   const { drafts, regenerate } = useDrafts();
   const { state: reviewState, act: reviewAct } = useReview();
+
+  useEffect(() => {
+    const summary = selectedPRs
+      .map((pr) => `#${pr.number}: ${pr.title}`)
+      .join('\n');
+
+    setCoreSummary((prev) => {
+      const shouldUpdate = prev.trim().length === 0 || prev === generatedSummaryRef.current;
+      generatedSummaryRef.current = summary;
+      return shouldUpdate ? summary : prev;
+    });
+  }, [selectedPRs]);
   
   // Map review status to release status
   const releaseStatus = (reviewState.status === 'draft' ? 'draft' :
@@ -41,20 +55,10 @@ export function AssembleMode({ selectedPRs, assets, onRemoveAsset, onUploadAsset
 
   const handleRegenerate = async () => {
     try {
-      // Construct context input from selected PRs
-      const contextInput = {
-        prs: selectedPRs,
-        assets: assets
-      };
-      
-      // Create a basic summary from PRs
-      const coreSummary = selectedPRs.map(pr => `#${pr.number}: ${pr.title}`).join('\n');
-      
-      // Regenerate drafts
       await regenerate({
-        contextInput,
+        contextInput: { prs: selectedPRs },
         coreSummary,
-        audiences: ['internal', 'customers', 'changelog', 'linkedin', 'email', 'investors']
+        tone: { level: 'concise' }
       });
       
       toast.success('Regenerating outputs with updated tone settings...');
@@ -67,12 +71,24 @@ export function AssembleMode({ selectedPRs, assets, onRemoveAsset, onUploadAsset
     toast.success(`Copied ${audience} content to clipboard`);
   };
 
+  const handleCoreSummaryChange = (value: string) => {
+    setCoreSummary(value);
+  };
+
+  const notifyRequestReviewSuccess = () => {
+    toast.success('Review request sent to team');
+  };
+
+  const notifyRequestReviewError = () => {
+    toast.error('Failed to request review');
+  };
+
   const handleRequestReview = async () => {
     try {
-      await reviewAct('request-review');
-      toast.success('Review request sent to team');
+      await reviewAct('requestReview');
+      notifyRequestReviewSuccess();
     } catch (error) {
-      toast.error('Failed to request review');
+      notifyRequestReviewError();
     }
   };
 
@@ -87,16 +103,28 @@ export function AssembleMode({ selectedPRs, assets, onRemoveAsset, onUploadAsset
 
   const handleRequestChanges = async () => {
     try {
-      await reviewAct('request-changes');
+      await reviewAct('requestChanges');
       toast.info('Changes requested');
     } catch (error) {
       toast.error('Failed to request changes');
     }
   };
 
+  const handleComment = async (text: string, anchor?: string) => {
+    if (!text.trim()) {
+      return;
+    }
+
+    try {
+      await reviewAct('comment', { text, anchor });
+      toast.success('Comment submitted');
+    } catch (error) {
+      toast.error('Failed to submit comment');
+    }
+  };
+
   const handlePublish = async (selectedChannels: Record<string, boolean>) => {
     try {
-      await publishApi(selectedChannels, drafts);
       await reviewAct('publish');
       toast.success('Release published successfully!');
     } catch (error) {
@@ -118,7 +146,8 @@ export function AssembleMode({ selectedPRs, assets, onRemoveAsset, onUploadAsset
         lastUpdated="2 hours ago"
         owner="Sarah Chen"
         approvers={releaseStatus !== 'draft' ? ['Alex Kumar', 'Jordan Lee'] : undefined}
-        onRequestReview={handleRequestReview}
+        onRequestReview={notifyRequestReviewSuccess}
+        onRequestReviewError={notifyRequestReviewError}
       />
 
       <div className="flex-1 overflow-hidden">
@@ -171,7 +200,11 @@ export function AssembleMode({ selectedPRs, assets, onRemoveAsset, onUploadAsset
                       AI-generated summary from your PRs. Edit and adjust tone before generating audience outputs.
                     </p>
                   </div>
-                  <SummaryPanel onRegenerate={handleRegenerate} />
+                  <SummaryPanel
+                    coreSummary={coreSummary}
+                    onChangeCoreSummary={handleCoreSummaryChange}
+                    onRegenerate={handleRegenerate}
+                  />
                 </div>
               </TabsContent>
 
@@ -200,8 +233,12 @@ export function AssembleMode({ selectedPRs, assets, onRemoveAsset, onUploadAsset
                     </p>
                   </div>
                   <ReviewPanel
+                    status={reviewState.status}
+                    comments={reviewState.comments ?? []}
+                    onRequestReview={handleRequestReview}
                     onApprove={handleApprove}
                     onRequestChanges={handleRequestChanges}
+                    onComment={handleComment}
                   />
                 </div>
               </TabsContent>
@@ -219,6 +256,7 @@ export function AssembleMode({ selectedPRs, assets, onRemoveAsset, onUploadAsset
                   <PublishPanel
                     onPublish={handlePublish}
                     onSchedule={handleSchedule}
+                    drafts={drafts}
                   />
                 </div>
               </TabsContent>
