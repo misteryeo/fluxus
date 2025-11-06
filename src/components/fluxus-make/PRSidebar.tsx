@@ -27,7 +27,7 @@ export function PRSidebar({
   selectedIds,
   onTogglePR = () => {},
   onCreateRelease = () => {},
-  selectedRepo: initialRepo = 'fluxus/platform',
+  selectedRepo: initialRepo = 'misteryeo/fluxus',
   selectedBranch = 'main'
 }: PRSidebarProps = {}) {
   const [currentRepo, setCurrentRepo] = useState(initialRepo);
@@ -37,7 +37,7 @@ export function PRSidebar({
 
   const { prs, loading, error, refresh } = usePRs(currentRepo);
   const repoOptions = useMemo(() => {
-    const defaults = ['fluxus/platform', 'fluxus/api', 'fluxus/docs'];
+    const defaults = ['misteryeo/fluxus'];
     return defaults.includes(initialRepo) ? defaults : [initialRepo, ...defaults];
   }, [initialRepo]);
 
@@ -123,7 +123,10 @@ export function PRSidebar({
             </>
           ) : error ? (
             <div className="p-4 text-sm text-neutral-600 dark:text-neutral-300 flex flex-col gap-3">
-              <div>Failed to load PRs.</div>
+              <div className="font-medium">Failed to load PRs</div>
+              <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                {error instanceof Error ? error.message : String(error)}
+              </div>
               <Button variant="outline" size="sm" onClick={refresh}>
                 Try again
               </Button>

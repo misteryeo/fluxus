@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 
 import type { PR } from "@/types";
 
-export function usePRs(repo: string = "fluxus/platform") {
+export function usePRs(repo: string = "misteryeo/fluxus") {
   const [prs, setPRs] = useState<PR[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -12,10 +12,11 @@ export function usePRs(repo: string = "fluxus/platform") {
     setError(null);
     try {
       const res = await fetch(`/api/prs?repo=${encodeURIComponent(targetRepo)}`, { cache: "no-store" });
-      if (!res.ok) {
-        throw new Error(`Failed to load pull requests: ${res.status}`);
-      }
       const d = await res.json();
+      if (!res.ok) {
+        const errorMessage = d.error || `Failed to load pull requests: ${res.status}`;
+        throw new Error(errorMessage);
+      }
       const prsData = Array.isArray(d.prs) ? (d.prs as PR[]) : [];
       setPRs(prsData);
     } catch (e: any) {
