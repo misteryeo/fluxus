@@ -15,20 +15,23 @@ import {
 import { usePRs } from '@/hooks/useFluxusMake';
 
 interface PRSidebarProps {
-  onPRToggle?: (prId: string) => void;
+  selectedIds?: Set<string>;
+  onTogglePR?: (pr: PR) => void;
   onCreateRelease?: () => void;
   selectedRepo?: string;
   selectedBranch?: string;
 }
 
-export function PRSidebar({ 
-  onPRToggle = () => {}, 
-  onCreateRelease = () => {}, 
-  selectedRepo = 'fluxus/platform', 
-  selectedBranch = 'main' 
+export function PRSidebar({
+  selectedIds,
+  onTogglePR = () => {},
+  onCreateRelease = () => {},
+  selectedRepo = 'fluxus/platform',
+  selectedBranch = 'main'
 }: PRSidebarProps = {}) {
-  const { prs, loading } = usePRs();
-  const selectedCount = prs.filter(pr => pr.selected).length;
+  const { prs, loading, error, refresh } = usePRs();
+
+  const selectedCount = selectedIds?.size ?? prs.filter(pr => pr.selected).length;
   const activeFilters = ['merged', 'feature'];
 
   return (
@@ -98,9 +101,21 @@ export function PRSidebar({
                 <PRRowSkeleton key={i} />
               ))}
             </>
+          ) : error ? (
+            <div className="p-4 text-sm text-neutral-600 dark:text-neutral-300 flex flex-col gap-3">
+              <div>Failed to load PRs.</div>
+              <Button variant="outline" size="sm" onClick={refresh}>
+                Try again
+              </Button>
+            </div>
           ) : (
             prs.map((pr) => (
-              <PRRow key={pr.id} pr={pr} onToggle={() => onPRToggle(pr.id)} />
+              <PRRow
+                key={pr.id}
+                pr={pr}
+                isSelected={selectedIds?.has(pr.id) ?? false}
+                onToggle={() => onTogglePR(pr)}
+              />
             ))
           )}
         </div>
@@ -113,18 +128,18 @@ export function PRSidebar({
   );
 }
 
-function PRRow({ pr, onToggle }: { pr: PR; onToggle: () => void }) {
+function PRRow({ pr, isSelected, onToggle }: { pr: PR; isSelected: boolean; onToggle: () => void }) {
   return (
     <div
       className={`p-3 rounded-xl mb-1 cursor-pointer transition-colors ${
-        pr.selected
+        isSelected
           ? 'bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700'
           : 'hover:bg-neutral-50 dark:hover:bg-neutral-900/50 border border-transparent'
       }`}
       onClick={onToggle}
     >
       <div className="flex items-start gap-2.5">
-        <Checkbox checked={pr.selected} className="mt-0.5" />
+        <Checkbox checked={isSelected} className="mt-0.5" />
         <div className="flex-1 min-w-0">
           <div className="text-sm text-neutral-900 dark:text-neutral-100 mb-1 line-clamp-2">
             #{pr.number} {pr.title}
@@ -169,4 +184,3 @@ function PRRowSkeleton() {
   );
 }
 
-export default PRSidebar;
