@@ -1,12 +1,35 @@
 import { useEffect, useState, useCallback } from "react";
 
-export function usePRs() {
-  const [prs, setPRs] = useState<any[]>([]);
+import type { PR } from "@/types";
+
+export function usePRs(repo: string = "fluxus/platform") {
+  const [prs, setPRs] = useState<PR[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const refresh = useCallback(async (nextRepo?: string) => {
+    const targetRepo = typeof nextRepo === "string" ? nextRepo : repo;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/prs?repo=${encodeURIComponent(targetRepo)}`, { cache: "no-store" });
+      if (!res.ok) {
+        throw new Error(`Failed to load pull requests: ${res.status}`);
+      }
+      const d = await res.json();
+      const prsData = Array.isArray(d.prs) ? (d.prs as PR[]) : [];
+      setPRs(prsData);
+    } catch (e: any) {
+      setError(e instanceof Error ? e : new Error(String(e)));
+      setPRs([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [repo]);
+
   useEffect(() => {
-    fetch("/api/prs").then(r => r.json()).then(d => setPRs(d.prs || [])).finally(() => setLoading(false));
-  }, []);
-  return { prs, loading };
+    refresh();
+  }, [refresh]);
+  return { prs, loading, error, refresh };
 }
 
 export function useDrafts() {
