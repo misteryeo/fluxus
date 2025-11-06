@@ -1,44 +1,36 @@
 'use client';
 
-import { MessageSquare, Check, X, MoreHorizontal } from 'lucide-react';
+import { MessageSquare, Check, X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Textarea } from '../ui/textarea';
 import { Avatar, AvatarFallback } from '../ui/avatar';
-import { Comment } from '../../types';
 import { useState } from 'react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '../ui/dropdown-menu';
 
 interface ReviewPanelProps {
+  status: string;
+  comments: Array<{
+    id: string;
+    author: string;
+    avatar?: string;
+    text: string;
+    timestamp: string;
+    resolved?: boolean;
+  }>;
+  onRequestReview: () => void;
   onApprove: () => void;
   onRequestChanges: () => void;
+  onComment: (text: string, anchor?: string) => void;
 }
 
-export function ReviewPanel({ onApprove, onRequestChanges }: ReviewPanelProps) {
-  const [comments, setComments] = useState<Comment[]>([
-    {
-      id: '1',
-      author: 'Alex Kumar',
-      avatar: 'AK',
-      text: 'Can we add a note about the EU compliance fix? Our European customers will appreciate knowing this was addressed.',
-      timestamp: '2 hours ago',
-      resolved: false
-    },
-    {
-      id: '2',
-      author: 'Jordan Lee',
-      avatar: 'JL',
-      text: 'The LinkedIn post feels a bit long. Maybe trim the first paragraph?',
-      timestamp: '1 hour ago',
-      resolved: true
-    }
-  ]);
-
+export function ReviewPanel({
+  status,
+  comments,
+  onRequestReview,
+  onApprove,
+  onRequestChanges,
+  onComment
+}: ReviewPanelProps) {
   const [newComment, setNewComment] = useState('');
   const reviewers = [
     { name: 'Alex Kumar', avatar: 'AK', status: 'pending' },
@@ -46,27 +38,14 @@ export function ReviewPanel({ onApprove, onRequestChanges }: ReviewPanelProps) {
     { name: 'Morgan Taylor', avatar: 'MT', status: 'pending' }
   ];
 
-  const unresolvedCount = comments.filter(c => !c.resolved).length;
-
-  const handleResolve = (commentId: string) => {
-    setComments(comments.map(c => 
-      c.id === commentId ? { ...c, resolved: !c.resolved } : c
-    ));
-  };
+  const commentList = Array.isArray(comments) ? comments : [];
+  const unresolvedCount = commentList.filter((comment) => !comment.resolved).length;
 
   const handleAddComment = () => {
-    if (!newComment.trim()) return;
-    
-    const comment: Comment = {
-      id: String(comments.length + 1),
-      author: 'You',
-      avatar: 'YO',
-      text: newComment,
-      timestamp: 'Just now',
-      resolved: false
-    };
-    
-    setComments([...comments, comment]);
+    const trimmed = newComment.trim();
+    if (!trimmed) return;
+
+    onComment(trimmed);
     setNewComment('');
   };
 
@@ -78,9 +57,14 @@ export function ReviewPanel({ onApprove, onRequestChanges }: ReviewPanelProps) {
             <h3 className="text-neutral-900 dark:text-neutral-100">Reviewers</h3>
             <Badge variant="secondary">{reviewers.length}</Badge>
           </div>
-          <Button variant="outline" size="sm">
-            Add reviewer
-          </Button>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="capitalize">
+              Status: {status || 'unknown'}
+            </Badge>
+            <Button variant="outline" size="sm" onClick={onRequestReview} className="gap-2">
+              Request review
+            </Button>
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -117,7 +101,7 @@ export function ReviewPanel({ onApprove, onRequestChanges }: ReviewPanelProps) {
           <div className="flex items-center gap-2">
             <MessageSquare className="w-5 h-5 text-neutral-600 dark:text-neutral-400" />
             <h3 className="text-neutral-900 dark:text-neutral-100">Comments</h3>
-            <Badge variant="secondary">{comments.length}</Badge>
+            <Badge variant="secondary">{commentList.length}</Badge>
             {unresolvedCount > 0 && (
               <Badge variant="destructive">{unresolvedCount} unresolved</Badge>
             )}
@@ -125,7 +109,7 @@ export function ReviewPanel({ onApprove, onRequestChanges }: ReviewPanelProps) {
         </div>
 
         <div className="space-y-3 mb-4">
-          {comments.map((comment) => (
+          {commentList.map((comment) => (
             <div
               key={comment.id}
               className={`p-4 rounded-xl border ${
@@ -138,7 +122,7 @@ export function ReviewPanel({ onApprove, onRequestChanges }: ReviewPanelProps) {
                 <div className="flex items-center gap-3">
                   <Avatar className="w-7 h-7 bg-neutral-200 dark:bg-neutral-700">
                     <AvatarFallback className="text-[10px] font-medium">
-                      {comment.avatar}
+                      {(comment.avatar || comment.author || '').slice(0, 2).toUpperCase() || '??'}
                     </AvatarFallback>
                   </Avatar>
                   <div>
@@ -150,38 +134,14 @@ export function ReviewPanel({ onApprove, onRequestChanges }: ReviewPanelProps) {
                     </div>
                   </div>
                 </div>
-                
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm">
-                      <MoreHorizontal className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleResolve(comment.id)}>
-                      {comment.resolved ? 'Unresolve' : 'Resolve'}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>Edit</DropdownMenuItem>
-                    <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Badge variant={comment.resolved ? 'secondary' : 'outline'} className="text-xs capitalize">
+                  {comment.resolved ? 'resolved' : 'open'}
+                </Badge>
               </div>
               
-              <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
+              <p className="text-sm text-neutral-600 dark:text-neutral-300">
                 {comment.text}
               </p>
-              
-              {!comment.resolved && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleResolve(comment.id)}
-                  className="gap-2"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  Resolve
-                </Button>
-              )}
             </div>
           ))}
         </div>
