@@ -54,9 +54,22 @@ export function AssembleMode({ selectedPRs = [], assets, onRemoveAsset, onUpload
   ];
 
   const handleRegenerate = async () => {
+    const prPayload = selectedPRs.map((pr) => ({
+      id: pr.id,
+      number: pr.number,
+      title: pr.title,
+      author: pr.author,
+      labels: pr.labels,
+      mergedDate: pr.mergedDate,
+      repo: pr.repo,
+      branch: pr.branch,
+      filesChanged: pr.filesChanged,
+      riskLevel: pr.riskLevel,
+    }));
+
     try {
       await regenerate({
-        contextInput: { prs: selectedPRs },
+        contextInput: { prs: prPayload },
         coreSummary,
         tone: { level: 'concise' }
       });
