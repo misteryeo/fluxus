@@ -14,10 +14,12 @@ import {
 } from '../ui/collapsible';
 
 interface SummaryPanelProps {
+  coreSummary: string;
+  onChangeCoreSummary: (value: string) => void;
   onRegenerate: () => void;
 }
 
-export function SummaryPanel({ onRegenerate }: SummaryPanelProps) {
+export function SummaryPanel({ coreSummary, onChangeCoreSummary, onRegenerate }: SummaryPanelProps) {
   const [showCitations, setShowCitations] = useState(false);
   const [toneSettings, setToneSettings] = useState({
     conciseDetailed: 50,
@@ -53,7 +55,8 @@ export function SummaryPanel({ onRegenerate }: SummaryPanelProps) {
         </div>
         <Textarea
           className="min-h-[120px] resize-none"
-          defaultValue="Added real-time collaboration features to the billing dashboard, including multi-user cursor tracking, live updates without page refresh, and presence indicators. Fixed invoice PDF generation for EU customers to correctly format VAT details according to compliance requirements."
+          value={coreSummary}
+          onChange={(event) => onChangeCoreSummary(event.target.value)}
         />
         
         {showCitations && (

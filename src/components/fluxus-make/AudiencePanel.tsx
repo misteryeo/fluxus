@@ -7,11 +7,10 @@ import { Switch } from '../ui/switch';
 import { Badge } from '../ui/badge';
 import { Textarea } from '../ui/textarea';
 import { useState } from 'react';
-import { audienceOutputs } from '../../lib/mockData';
 
 interface AudiencePanelProps {
   onCopyContent: (audience: string) => void;
-  drafts?: Record<'internal'|'customers'|'changelog'|'linkedin'|'email'|'investor', string>;
+  drafts?: Partial<Record<'internal'|'customers'|'changelog'|'linkedin'|'email'|'investor', string>>;
 }
 
 export function AudiencePanel({ onCopyContent, drafts }: AudiencePanelProps) {
@@ -26,7 +25,7 @@ export function AudiencePanel({ onCopyContent, drafts }: AudiencePanelProps) {
   const handleCopy = (audience: string) => {
     // Map 'investors' to 'investor' for drafts key
     const draftKey = audience === 'investors' ? 'investor' : audience as 'internal'|'customers'|'changelog'|'linkedin'|'email'|'investor';
-    const content = drafts?.[draftKey] || audienceOutputs[audience as keyof typeof audienceOutputs] || '';
+    const content = drafts?.[draftKey] ?? '';
     navigator.clipboard.writeText(content);
     setCopied(audience);
     onCopyContent(audience);
@@ -73,7 +72,7 @@ export function AudiencePanel({ onCopyContent, drafts }: AudiencePanelProps) {
 
         {audiences.map((audience) => {
           const draftKey = audience.id === 'investors' ? 'investor' : audience.id as 'internal'|'customers'|'changelog'|'linkedin'|'email'|'investor';
-          const content = drafts?.[draftKey] || audienceOutputs[audience.id as keyof typeof audienceOutputs] || '';
+          const content = drafts?.[draftKey] ?? '';
           const charCount = content.length;
           
           return (
