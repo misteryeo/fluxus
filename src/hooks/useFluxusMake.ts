@@ -2,6 +2,53 @@ import { useEffect, useState, useCallback } from "react";
 
 import type { PR } from "@/types";
 
+export interface Repo {
+  fullName: string;
+  name: string;
+  private: boolean;
+  description: string | null;
+  updatedAt: string;
+  defaultBranch: string;
+}
+
+export function useRepos(owner: string) {
+  const [repos, setRepos] = useState<Repo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  
+  const refresh = useCallback(async (nextOwner?: string) => {
+    const targetOwner = typeof nextOwner === "string" ? nextOwner : owner;
+    if (!targetOwner) {
+      setLoading(false);
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/repos?owner=${encodeURIComponent(targetOwner)}`, { cache: "no-store" });
+      const d = await res.json();
+      if (!res.ok) {
+        const errorMessage = d.error || `Failed to load repositories: ${res.status}`;
+        throw new Error(errorMessage);
+      }
+      const reposData = Array.isArray(d.repos) ? (d.repos as Repo[]) : [];
+      setRepos(reposData);
+    } catch (e: any) {
+      setError(e instanceof Error ? e : new Error(String(e)));
+      setRepos([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [owner]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+  
+  return { repos, loading, error, refresh };
+}
+
 export function usePRs(repo: string = "misteryeo/fluxus") {
   const [prs, setPRs] = useState<PR[]>([]);
   const [loading, setLoading] = useState(true);
