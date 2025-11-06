@@ -2,72 +2,82 @@
 'use client';
 
 import { Github, Upload, ExternalLink, X } from 'lucide-react';
-import { PR, Asset } from '../../types';
+import { Asset } from '../../types';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 
 interface SourcePanelProps {
-  selectedPRs: PR[];
+  selectedPRs?: any[];
   assets: Asset[];
   onRemoveAsset: (assetId: string) => void;
   onUploadAsset: () => void;
 }
 
 export function SourcePanel({ selectedPRs = [], assets = [], onRemoveAsset, onUploadAsset }: SourcePanelProps) {
+  const prList = Array.isArray(selectedPRs) ? selectedPRs : [];
+  const assetList = Array.isArray(assets) ? assets : [];
+
   return (
     <div className="space-y-6">
       <div>
         <div className="flex items-center gap-2 mb-4">
           <Github className="w-5 h-5 text-neutral-600 dark:text-neutral-400" />
           <h3 className="text-neutral-900 dark:text-neutral-100">Connected PRs</h3>
-          <Badge variant="secondary">{selectedPRs.length}</Badge>
+          <Badge variant="secondary">{prList.length}</Badge>
         </div>
         
         <div className="space-y-2">
-          {selectedPRs.map((pr) => (
-            <Card key={pr.id} className="p-4">
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <div className="text-neutral-900 dark:text-neutral-100 mb-1">
-                    #{pr.number} {pr.title}
+          {prList.map((pr: any, index: number) => {
+            const labels = Array.isArray(pr?.labels) ? pr.labels : [];
+            const mergedDate = pr?.mergedDate ? new Date(pr.mergedDate).toLocaleDateString() : 'Unknown date';
+            const filesChanged = typeof pr?.filesChanged === 'number' ? pr.filesChanged : 0;
+            const riskLevel = pr?.riskLevel;
+
+            return (
+              <Card key={pr?.id ?? index} className="p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <div className="text-neutral-900 dark:text-neutral-100 mb-1">
+                      #{pr?.number ?? '—'} {pr?.title ?? 'Untitled PR'}
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
+                      <span>{pr?.author?.name ?? 'Unknown author'}</span>
+                      <span>•</span>
+                      <span>{mergedDate}</span>
+                      <span>•</span>
+                      <span>{filesChanged} files changed</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
-                    <span>{pr.author.name}</span>
-                    <span>•</span>
-                    <span>{new Date(pr.mergedDate).toLocaleDateString()}</span>
-                    <span>•</span>
-                    <span>{pr.filesChanged} files changed</span>
-                  </div>
+                  <a href={pr?.url || '#'} className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300">
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
                 </div>
-                <a href="#" className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300">
-                  <ExternalLink className="w-4 h-4" />
-                </a>
-              </div>
-              
-              <div className="flex flex-wrap gap-1.5">
-                {pr.labels.map((label) => (
-                  <Badge key={label} variant="secondary" className="text-xs">
-                    {label}
-                  </Badge>
-                ))}
-                {pr.riskLevel && (
-                  <Badge 
-                    variant="outline" 
-                    className={`text-xs ${
-                      pr.riskLevel === 'high' 
-                        ? 'border-red-300 dark:border-red-700 text-red-700 dark:text-red-300' 
-                        : pr.riskLevel === 'medium'
-                        ? 'border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300'
-                        : 'border-green-300 dark:border-green-700 text-green-700 dark:text-green-300'
-                    }`}
-                  >
-                    {pr.riskLevel} risk
-                  </Badge>
-                )}
-              </div>
-            </Card>
-          ))}
+                
+                <div className="flex flex-wrap gap-1.5">
+                  {labels.map((label: string) => (
+                    <Badge key={label} variant="secondary" className="text-xs">
+                      {label}
+                    </Badge>
+                  ))}
+                  {riskLevel && (
+                    <Badge 
+                      variant="outline" 
+                      className={`text-xs ${
+                        riskLevel === 'high' 
+                          ? 'border-red-300 dark:border-red-700 text-red-700 dark:text-red-300' 
+                          : riskLevel === 'medium'
+                          ? 'border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300'
+                          : 'border-green-300 dark:border-green-700 text-green-700 dark:text-green-300'
+                      }`}
+                    >
+                      {riskLevel} risk
+                    </Badge>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
         </div>
       </div>
 
@@ -75,7 +85,7 @@ export function SourcePanel({ selectedPRs = [], assets = [], onRemoveAsset, onUp
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <h3 className="text-neutral-900 dark:text-neutral-100">Assets</h3>
-            <Badge variant="secondary">{assets.length}</Badge>
+            <Badge variant="secondary">{assetList.length}</Badge>
           </div>
           <Button variant="outline" size="sm" onClick={onUploadAsset} className="gap-2">
             <Upload className="w-4 h-4" />
@@ -84,7 +94,7 @@ export function SourcePanel({ selectedPRs = [], assets = [], onRemoveAsset, onUp
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          {assets.map((asset) => (
+          {assetList.map((asset) => (
             <Card key={asset.id} className="relative group overflow-hidden">
               <img 
                 src={asset.thumbnail || asset.url} 
