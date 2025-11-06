@@ -1,6 +1,7 @@
 'use client';
 
 import { Search, Filter, Plus, ChevronDown } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { PR } from '../../types';
 import { Badge } from '../ui/badge';
 import { Checkbox } from '../ui/checkbox';
@@ -26,10 +27,19 @@ export function PRSidebar({
   selectedIds,
   onTogglePR = () => {},
   onCreateRelease = () => {},
-  selectedRepo = 'fluxus/platform',
+  selectedRepo: initialRepo = 'fluxus/platform',
   selectedBranch = 'main'
 }: PRSidebarProps = {}) {
-  const { prs, loading, error, refresh } = usePRs();
+  const [currentRepo, setCurrentRepo] = useState(initialRepo);
+  useEffect(() => {
+    setCurrentRepo(initialRepo);
+  }, [initialRepo]);
+
+  const { prs, loading, error, refresh } = usePRs(currentRepo);
+  const repoOptions = useMemo(() => {
+    const defaults = ['fluxus/platform', 'fluxus/api', 'fluxus/docs'];
+    return defaults.includes(initialRepo) ? defaults : [initialRepo, ...defaults];
+  }, [initialRepo]);
 
   const selectedCount = selectedIds?.size ?? prs.filter(pr => pr.selected).length;
   const activeFilters = ['merged', 'feature'];
@@ -39,7 +49,7 @@ export function PRSidebar({
       <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
         <div className="flex items-center gap-2 mb-3">
           <div className="flex-1">
-            <div className="text-neutral-900 dark:text-neutral-100">{selectedRepo}</div>
+            <div className="text-neutral-900 dark:text-neutral-100">{currentRepo}</div>
             <div className="text-xs text-neutral-500 dark:text-neutral-400">{selectedBranch}</div>
           </div>
           <DropdownMenu>
@@ -49,9 +59,19 @@ export function PRSidebar({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuCheckboxItem checked>fluxus/platform</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem>fluxus/api</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem>fluxus/docs</DropdownMenuCheckboxItem>
+              {repoOptions.map((repo) => (
+                <DropdownMenuCheckboxItem
+                  key={repo}
+                  checked={repo === currentRepo}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setCurrentRepo(repo);
+                    }
+                  }}
+                >
+                  {repo}
+                </DropdownMenuCheckboxItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
