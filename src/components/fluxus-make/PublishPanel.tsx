@@ -1,12 +1,16 @@
 'use client';
 
 import { Calendar, Send, AlertTriangle, CheckCircle2, XCircle, RotateCw } from 'lucide-react';
-import { Button } from '../ui/button';
-import { Switch } from '../ui/switch';
-import { Badge } from '../ui/badge';
-import { Card } from '../ui/card';
-import { Alert, AlertDescription } from '../ui/alert';
 import { useState } from 'react';
+import { toast } from 'sonner';
+
+import { publish } from '@/hooks/useFluxusMake';
+
+import { Alert, AlertDescription } from '../ui/alert';
+import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
+import { Card } from '../ui/card';
+import { Switch } from '../ui/switch';
 import {
   Select,
   SelectContent,
@@ -18,9 +22,10 @@ import {
 interface PublishPanelProps {
   onPublish: (channels: Record<string, boolean>) => void;
   onSchedule: (date: string, time: string) => void;
+  drafts: Record<string, string>;
 }
 
-export function PublishPanel({ onPublish, onSchedule }: PublishPanelProps) {
+export function PublishPanel({ onPublish, onSchedule, drafts }: PublishPanelProps) {
   const [publishMode, setPublishMode] = useState<'now' | 'scheduled'>('now');
   const [channels, setChannels] = useState({
     slack: true,
@@ -67,33 +72,69 @@ export function PublishPanel({ onPublish, onSchedule }: PublishPanelProps) {
     }
   ];
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     setShowStatus(true);
+
     const enabledChannels = Object.entries(channels)
       .filter(([, enabled]) => enabled)
       .map(([channel]) => channel);
 
-    // Simulate publishing
-    setPublishStatus(
-      enabledChannels.reduce((acc, channel) => ({
-        ...acc,
-        [channel]: 'pending'
-      }), {})
-    );
+    const selectedChannels = enabledChannels.reduce<Record<string, boolean>>((acc, channel) => {
+      acc[channel] = true;
+      return acc;
+    }, {});
 
-    // Simulate results
-    setTimeout(() => {
-      setPublishStatus({
-        slack: 'success',
-        changelog: 'success',
-        email: 'success',
-        linkedin: 'failed',
-        docs: 'success'
-      });
-    }, 2000);
-    onPublish(channels);
-    if (publishMode === 'scheduled') {
-      onSchedule(scheduleDate, scheduleTime);
+    const pendingStatus = enabledChannels.reduce<Record<string, 'success' | 'pending' | 'failed'>>((acc, channel) => {
+      acc[channel] = 'pending';
+      return acc;
+    }, {});
+
+    setPublishStatus(pendingStatus);
+
+    try {
+      const res = await publish(selectedChannels, drafts);
+
+      const responseStatus = Object.entries(res?.result ?? {}).reduce<Record<string, 'success' | 'pending' | 'failed'>>(
+        (acc, [channel, status]) => {
+          let mapped: 'success' | 'pending' | 'failed';
+
+          if (status === 'queued' || status === 'success') {
+            mapped = 'success';
+          } else if (status === 'failed') {
+            mapped = 'failed';
+          } else {
+            mapped = 'pending';
+          }
+
+          acc[channel] = mapped;
+          return acc;
+        },
+        {}
+      );
+
+      setPublishStatus((prev) => ({ ...prev, ...responseStatus }));
+
+      const resultMessage = res?.result && Object.keys(res.result).length > 0
+        ? Object.entries(res.result)
+            .map(([channel, status]) => `${channel}: ${status}`)
+            .join(', ')
+        : 'No channels published';
+
+      toast.success(resultMessage);
+
+      onPublish(selectedChannels);
+
+      if (publishMode === 'scheduled') {
+        onSchedule(scheduleDate, scheduleTime);
+      }
+    } catch (error) {
+      const failedStatus = enabledChannels.reduce<Record<string, 'success' | 'pending' | 'failed'>>((acc, channel) => {
+        acc[channel] = 'failed';
+        return acc;
+      }, {});
+
+      setPublishStatus(failedStatus);
+      toast.error('Failed to publish release');
     }
   };
 
