@@ -13,23 +13,23 @@ export function getDefaultTemplates(): Record<Audience, Template> {
     internal: {
       name: 'Internal Template',
       body: `TL;DR
-{{ clamp(summaries.value, 220) }}
+{{ clamp(or(whyNow, summaries.value), 220) }}
 
 What changed
 - {{ bullets(summaries.technical, 3) }}
 
 Why it matters
-- {{ bullets(summaries.value, 3) }}
+- {{ bullets(or(whyNow, summaries.value), 3) }}
 
 Risks / limitations
-- [TBD]
+- {{ bullets(or(risks, "[Needs to be filled in]"), 3) }}
 
 Links
-- PR: {{ or(links.prUrl, "[TBD]") }}
-- Linear: {{ or(links.linearUrl, "[TBD]") }}
+- PR: {{ or(links.prUrl, "[Needs to be filled in]") }}
+- Linear: {{ or(links.linearUrl, "[Needs to be filled in]") }}
 
 Next steps
-- [TBD]`,
+- {{ bullets(or(nextSteps, "[Needs to be filled in]"), 3) }}`,
       tone: 'neutral',
       lengthLimit: 500,
       emoji: true,
@@ -38,15 +38,15 @@ Next steps
       name: 'Customer Template',
       body: `# {{ meta.featureName }} ({{ upper(or(meta.status, "TBD")) }})
 
-**Value:** {{ clamp(summaries.value, 300) }}
+**Value:** {{ clamp(or(whyNow, summaries.value), 300) }}
 
 **What's new**
 - {{ bullets(summaries.technical, 3) }}
 
-**Who gets it:** {{ or(meta.audienceNotes, "[TBD]") }}
-**How to access:** {{ or(meta.access, "[TBD: how to access]") }}
+**Who gets it:** {{ or(whoGetsIt, meta.audienceNotes, meta.access, "[Needs to be filled in]") }}
+**How to access:** {{ or(howToAccess, meta.access, "[Needs to be filled in]") }}
 
-Docs: {{ or(links.docsUrl, "[TBD link]") }}`,
+Docs: {{ or(links.docsUrl, links.prUrl, "[Needs to be filled in]") }}`,
       tone: 'friendly',
       lengthLimit: 300,
       emoji: true,
@@ -56,16 +56,16 @@ Docs: {{ or(links.docsUrl, "[TBD link]") }}`,
       body: `**Shipped:** {{ meta.featureName }} ({{ or(meta.version, "TBD") }}) — {{ upper(or(meta.status, "TBD")) }}
 
 **Why it matters**
-- {{ bullets(summaries.value, 3) }}
+- {{ bullets(or(whyNow, summaries.value), 3) }}
 
 **Leading indicators / KPIs**
-- {{ or(metrics.kpi, "[TBD KPI or expected impact]") }}
+- {{ or(kpis, metrics.kpi, "[Needs to be filled in]") }}
 
 **Risks / mitigations**
-- [TBD]
+- {{ bullets(or(risks, "[Needs to be filled in]"), 3) }}
 
 **Next milestone**
-- [TBD date / metric]`,
+- {{ or(nextMilestone, "[Needs to be filled in]") }}`,
       tone: 'assertive',
       lengthLimit: 250,
       emoji: false,
@@ -74,12 +74,12 @@ Docs: {{ or(links.docsUrl, "[TBD link]") }}`,
       name: 'Public Template',
       body: `🚀 {{ meta.featureName }} is live ({{ upper(or(meta.status, "TBD")) }})
 
-{{ clamp(summaries.value, 220) }}
+{{ clamp(or(whyNow, summaries.value), 220) }}
 
 What's new
 - {{ bullets(summaries.technical, 3) }}
 
-Try it: {{ or(meta.access, "[TBD: how to access]") }}`,
+Try it: {{ or(howToAccess, meta.access, "[Needs to be filled in]") }}`,
       tone: 'friendly',
       lengthLimit: 250,
       emoji: true,

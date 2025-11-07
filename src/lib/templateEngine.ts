@@ -87,6 +87,20 @@ export interface TemplateContext {
     kpi?: string;
   };
   notes: string;
+  risks?: string;
+  nextSteps?: string;
+  whyNow?: string;
+  kpis?: string;
+  nextMilestone?: string;
+  whoGetsIt?: string;
+  howToAccess?: string;
+  summary?: string;
+  prList?: string;
+  compactPRList?: string;
+  whatChanged?: string;
+  userValue?: string;
+  bulletedValue?: string;
+  impactLine?: string;
 }
 
 export type CompileResult = { 
