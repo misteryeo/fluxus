@@ -119,7 +119,8 @@ export function AudiencePanel({ onCopyContent, drafts }: AudiencePanelProps) {
               <Textarea
                 className="min-h-[400px] resize-none font-mono text-sm"
                 value={content}
-                readOnly={!showDiff}
+                readOnly={true}
+                placeholder=""
               />
               
               {showDiff && (

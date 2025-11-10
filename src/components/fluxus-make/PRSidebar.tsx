@@ -13,7 +13,7 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
-import { usePRs } from '@/hooks/useFluxusMake';
+import { usePRs, useRepos } from '@/hooks/useFluxusMake';
 
 interface PRSidebarProps {
   selectedIds?: Set<string>;
@@ -27,7 +27,7 @@ export function PRSidebar({
   selectedIds,
   onTogglePR = () => {},
   onCreateRelease = () => {},
-  selectedRepo: initialRepo = 'fluxus/platform',
+  selectedRepo: initialRepo = 'misteryeo/fluxus',
   selectedBranch = 'main'
 }: PRSidebarProps = {}) {
   const [currentRepo, setCurrentRepo] = useState(initialRepo);
@@ -35,11 +35,31 @@ export function PRSidebar({
     setCurrentRepo(initialRepo);
   }, [initialRepo]);
 
+  // Extract owner from repo (e.g., "misteryeo/fluxus" -> "misteryeo")
+  const owner = useMemo(() => {
+    const parts = currentRepo.split('/');
+    return parts[0] || 'misteryeo';
+  }, [currentRepo]);
+
   const { prs, loading, error, refresh } = usePRs(currentRepo);
+  const { repos: availableRepos, loading: reposLoading } = useRepos(owner);
+  
+  // Get default branch for current repo
+  const currentRepoInfo = useMemo(() => {
+    return availableRepos.find(repo => repo.fullName === currentRepo);
+  }, [availableRepos, currentRepo]);
+  
+  const currentBranch = currentRepoInfo?.defaultBranch || selectedBranch;
+  
+  // Build repo options from fetched repos, ensuring current repo is included
   const repoOptions = useMemo(() => {
-    const defaults = ['fluxus/platform', 'fluxus/api', 'fluxus/docs'];
-    return defaults.includes(initialRepo) ? defaults : [initialRepo, ...defaults];
-  }, [initialRepo]);
+    const repoFullNames = availableRepos.map(repo => repo.fullName);
+    // Ensure current repo is in the list even if not yet loaded
+    if (!repoFullNames.includes(currentRepo)) {
+      return [currentRepo, ...repoFullNames];
+    }
+    return repoFullNames;
+  }, [availableRepos, currentRepo]);
 
   const selectedCount = selectedIds?.size ?? prs.filter(pr => pr.selected).length;
   const activeFilters = ['merged', 'feature'];
@@ -50,7 +70,7 @@ export function PRSidebar({
         <div className="flex items-center gap-2 mb-3">
           <div className="flex-1">
             <div className="text-neutral-900 dark:text-neutral-100">{currentRepo}</div>
-            <div className="text-xs text-neutral-500 dark:text-neutral-400">{selectedBranch}</div>
+            <div className="text-xs text-neutral-500 dark:text-neutral-400">{currentBranch}</div>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -58,20 +78,26 @@ export function PRSidebar({
                 <ChevronDown className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {repoOptions.map((repo) => (
-                <DropdownMenuCheckboxItem
-                  key={repo}
-                  checked={repo === currentRepo}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      setCurrentRepo(repo);
-                    }
-                  }}
-                >
-                  {repo}
-                </DropdownMenuCheckboxItem>
-              ))}
+            <DropdownMenuContent align="end" className="max-h-[300px] overflow-y-auto">
+              {reposLoading ? (
+                <div className="px-2 py-1.5 text-sm text-neutral-500">Loading repositories...</div>
+              ) : repoOptions.length === 0 ? (
+                <div className="px-2 py-1.5 text-sm text-neutral-500">No repositories found</div>
+              ) : (
+                repoOptions.map((repo) => (
+                  <DropdownMenuCheckboxItem
+                    key={repo}
+                    checked={repo === currentRepo}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setCurrentRepo(repo);
+                      }
+                    }}
+                  >
+                    {repo}
+                  </DropdownMenuCheckboxItem>
+                ))
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -123,7 +149,10 @@ export function PRSidebar({
             </>
           ) : error ? (
             <div className="p-4 text-sm text-neutral-600 dark:text-neutral-300 flex flex-col gap-3">
-              <div>Failed to load PRs.</div>
+              <div className="font-medium">Failed to load PRs</div>
+              <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                {error instanceof Error ? error.message : String(error)}
+              </div>
               <Button variant="outline" size="sm" onClick={refresh}>
                 Try again
               </Button>
