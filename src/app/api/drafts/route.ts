@@ -3,6 +3,7 @@ import { compile as renderTemplate, type TemplateContext } from "@/lib/templateE
 import { getDefaultTemplates as defaultTemplates } from "@/lib/defaultTemplates";
 import { buildContext } from "@/utils/buildContext";
 import type { PR } from "@/types";
+import { normalizePullRequests } from "@/utils/prs";
 import {
   getRisksPrompt,
   getWhyNowPrompt,
@@ -14,6 +15,7 @@ import {
   type PromptInput,
   type PromptMessage,
 } from "@/lib/aiPrompts";
+import { requestPromptCompletion, sanitizeAIText } from "@/lib/aiClient";
 
 interface DraftRequest {
   contextInput?: {
@@ -22,29 +24,6 @@ interface DraftRequest {
   coreSummary?: string;
   tone?: unknown;
   audiences?: string[];
-}
-
-function normalizePullRequests(input: unknown): PR[] {
-  if (Array.isArray(input)) {
-    return input.filter(isValidPR);
-  }
-  if (input && typeof input === "object") {
-    const values = Object.values(input as Record<string, unknown>);
-    return values.filter(isValidPR);
-  }
-  return [];
-}
-
-function isValidPR(pr: unknown): pr is PR {
-  if (!pr || typeof pr !== "object") {
-    return false;
-  }
-  const candidate = pr as Record<string, unknown>;
-  return (
-    typeof candidate.number === "number" &&
-    typeof candidate.title === "string" &&
-    typeof candidate.repo === "string"
-  );
 }
 
 export async function POST(req: Request) {
@@ -121,64 +100,15 @@ async function generateAISections(args: { prs: PR[]; coreSummary: string; contex
 
   const entries = await Promise.all(
     Object.entries(promptMap).map(async ([key, prompt]) => {
-      const text = await runOpenAICompletion(apiKey, prompt);
-      return [key, sanitizeAIText(text)] as const;
+      const result = await requestPromptCompletion(prompt);
+
+      if (result.error) {
+        console.error("OpenAI aiSections error:", result.error);
+      }
+
+      return [key, sanitizeAIText(result.text)] as const;
     })
   );
 
   return Object.fromEntries(entries);
-}
-
-async function runOpenAICompletion(apiKey: string, prompt: PromptMessage): Promise<string | undefined> {
-  try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        temperature: 0.2,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: prompt.system },
-          { role: "user", content: prompt.user },
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      const err = await response.text();
-      console.error("OpenAI aiSections error:", err);
-      return undefined;
-    }
-
-    const json = await response.json();
-    const content = json.choices?.[0]?.message?.content;
-    if (!content) {
-      return undefined;
-    }
-
-    try {
-      const parsed = JSON.parse(content);
-      const text = typeof parsed.text === "string" ? parsed.text.trim() : undefined;
-      return text && text.length > 0 ? text : undefined;
-    } catch (error) {
-      console.error("OpenAI aiSections parse error:", error);
-      return undefined;
-    }
-  } catch (error) {
-    console.error("OpenAI aiSections failure:", error);
-    return undefined;
-  }
-}
-
-function sanitizeAIText(value: string | undefined): string | undefined {
-  if (!value) {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
 }

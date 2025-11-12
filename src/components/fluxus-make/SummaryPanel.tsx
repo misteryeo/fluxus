@@ -1,6 +1,6 @@
 'use client';
 
-import { Sparkles, RefreshCw, Eye, Code } from 'lucide-react';
+import { Sparkles, RefreshCw, Eye, Code, Loader2 } from 'lucide-react';
 import { Textarea } from '../ui/textarea';
 import { Button } from '../ui/button';
 import { Slider } from '../ui/slider';
@@ -17,9 +17,35 @@ interface SummaryPanelProps {
   coreSummary: string;
   onChangeCoreSummary: (value: string) => void;
   onRegenerate: () => void;
+  aiSummaryLoading: boolean;
+  aiSummaryError: string | null;
+  generatedSummarySource: 'ai' | 'fallback' | null;
+  onRetrySummary?: () => void;
+  isManualSummary: boolean;
+  userValue: string;
+  whatChanged: string;
+  whyNow: string;
+  onChangeUserValue: (value: string) => void;
+  onChangeWhatChanged: (value: string) => void;
+  onChangeWhyNow: (value: string) => void;
 }
 
-export function SummaryPanel({ coreSummary, onChangeCoreSummary, onRegenerate }: SummaryPanelProps) {
+export function SummaryPanel({
+  coreSummary,
+  onChangeCoreSummary,
+  onRegenerate,
+  aiSummaryLoading,
+  aiSummaryError,
+  generatedSummarySource,
+  onRetrySummary,
+  isManualSummary,
+  userValue,
+  whatChanged,
+  whyNow,
+  onChangeUserValue,
+  onChangeWhatChanged,
+  onChangeWhyNow,
+}: SummaryPanelProps) {
   const [showCitations, setShowCitations] = useState(false);
   const [toneSettings, setToneSettings] = useState({
     conciseDetailed: 50,
@@ -29,23 +55,90 @@ export function SummaryPanel({ coreSummary, onChangeCoreSummary, onRegenerate }:
 
   const tokens = ['{{version}}', '{{feature}}', '{{team}}', '{{date}}', '{{docs_link}}'];
 
+  const sourceLabel = isManualSummary
+    ? 'Manual edits'
+    : generatedSummarySource === 'ai'
+      ? 'AI generated'
+      : generatedSummarySource === 'fallback'
+        ? 'Fallback summary'
+        : null;
+
+  const renderStatusMessage = () => {
+    if (aiSummaryLoading) {
+      return (
+        <>
+          <Loader2 className="w-4 h-4 animate-spin text-blue-600 dark:text-blue-400" />
+          <span>Generating summary from AI…</span>
+        </>
+      );
+    }
+
+    if (generatedSummarySource === 'ai') {
+      return (
+        <span>
+          {isManualSummary
+            ? 'AI summary generated. Manual edits are currently applied.'
+            : 'AI-generated summary from your PRs. Review and edit before generating outputs.'}
+        </span>
+      );
+    }
+
+    if (generatedSummarySource === 'fallback') {
+      return (
+        <span>
+          {isManualSummary
+            ? 'Fallback summary available. Manual edits are currently applied.'
+            : 'Using fallback summary based on selected PRs. Review and edit before generating outputs.'}
+        </span>
+      );
+    }
+
+    if (isManualSummary) {
+      return <span>Summary includes manual edits. Review before generating outputs.</span>;
+    }
+
+    return <span>Select PRs to generate a release summary.</span>;
+  };
+
   return (
     <div className="space-y-6">
       <Alert className="bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900">
         <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-        <AlertDescription className="text-blue-900 dark:text-blue-100">
-          AI-generated summary from 2 PRs. Review and edit before generating outputs.
+        <AlertDescription className="text-blue-900 dark:text-blue-100 space-y-2">
+          <div className="flex items-center gap-2">{renderStatusMessage()}</div>
+          {aiSummaryError && (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-blue-800 dark:text-blue-200/80">
+              <span>{aiSummaryError}</span>
+              {onRetrySummary && !aiSummaryLoading && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2"
+                  onClick={onRetrySummary}
+                >
+                  Try again
+                </Button>
+              )}
+            </div>
+          )}
         </AlertDescription>
       </Alert>
 
       <div>
         <div className="flex items-center justify-between mb-3">
-          <label className="text-sm text-neutral-700 dark:text-neutral-300">
-            Technical Summary
-          </label>
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-neutral-700 dark:text-neutral-300">
+              Technical Summary
+            </label>
+            {sourceLabel && (
+              <Badge variant="outline" className="uppercase tracking-wide text-[11px]">
+                {sourceLabel}
+              </Badge>
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setShowCitations(!showCitations)}
             className="gap-2"
           >
@@ -77,7 +170,9 @@ export function SummaryPanel({ coreSummary, onChangeCoreSummary, onRegenerate }:
         </label>
         <Textarea
           className="min-h-[100px] resize-none"
-          defaultValue="Teams can now collaborate seamlessly in the billing dashboard with live cursors and instant updates. No more refreshing or conflicts when multiple people are working together."
+          placeholder="Summarize the release in customer-friendly language"
+          value={userValue}
+          onChange={(event) => onChangeUserValue(event.target.value)}
         />
       </div>
 
@@ -88,17 +183,21 @@ export function SummaryPanel({ coreSummary, onChangeCoreSummary, onRegenerate }:
           </label>
           <Textarea
             className="min-h-[80px] resize-none"
-            defaultValue="Multi-user real-time collaboration, live cursor tracking, automatic sync"
+            placeholder="List the key changes introduced in this release"
+            value={whatChanged}
+            onChange={(event) => onChangeWhatChanged(event.target.value)}
           />
         </div>
-        
+
         <div>
           <label className="text-sm text-neutral-700 dark:text-neutral-300 mb-3 block">
             Why Now
           </label>
           <Textarea
             className="min-h-[80px] resize-none"
-            defaultValue="Customer feedback showed 67% of billing teams have 2+ people managing invoices simultaneously"
+            placeholder="Explain the urgency or timing behind these changes"
+            value={whyNow}
+            onChange={(event) => onChangeWhyNow(event.target.value)}
           />
         </div>
       </div>

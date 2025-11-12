@@ -156,3 +156,15 @@ export function getHowToAccessPrompt(input: PromptInput): PromptMessage {
   });
 }
 
+export function getCoreSummaryPrompt(input: PromptInput): PromptMessage {
+  return createPrompt({
+    task: "Produce a crisp technical summary (2-3 sentences) of this release, highlighting the most meaningful PRs and outcomes.",
+    guidance: [
+      "Lead with the primary capability or customer impact.",
+      "Reference specific PR contributions when useful (by number or repo).",
+      "Avoid speculation and keep the tone professional.",
+    ].join(" "),
+    input,
+  });
+}
+
