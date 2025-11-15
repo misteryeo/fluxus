@@ -245,3 +245,61 @@ export async function publish(channels: Record<string, boolean>, drafts: Record<
   const res = await fetch("/api/publish", { method: "POST", body: JSON.stringify({ channels, drafts }) });
   return res.json();
 }
+
+// Summary generation hook -----------------------------------------------------
+
+export interface ToneSettings {
+  conciseDetailed: number;
+  playfulFormal: number;
+  technicalLay: number;
+}
+
+export interface SummaryFields {
+  technicalSummary: string;
+  userFacingValue: string;
+  whatChanged: string;
+  whyNow: string;
+}
+
+export function useSummaryGeneration() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const generate = useCallback(async (prs: PR[], tone: ToneSettings): Promise<SummaryFields> => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prs, tone }),
+      });
+
+      if (!res.ok) {
+        const errorBody = await safeParseJSON(res);
+        const message =
+          typeof errorBody?.error === "string"
+            ? errorBody.error
+            : `Failed to generate summary (status ${res.status})`;
+        throw new Error(message);
+      }
+
+      const data = await res.json();
+      return {
+        technicalSummary: data.technicalSummary || "Not enough information",
+        userFacingValue: data.userFacingValue || "Not enough information",
+        whatChanged: data.whatChanged || "Not enough information",
+        whyNow: data.whyNow || "Not enough information",
+      };
+    } catch (e: any) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { generate, loading, error };
+}

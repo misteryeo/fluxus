@@ -12,6 +12,21 @@ export interface PromptInput {
   coreSummary: string;
 }
 
+export interface ToneSettings {
+  conciseDetailed: number;  // 0 = very concise, 100 = very detailed
+  playfulFormal: number;    // 0 = very playful, 100 = very formal
+  technicalLay: number;     // 0 = very technical, 100 = very lay/accessible
+}
+
+export interface SummaryPromptInput extends PromptInput {
+  tone: ToneSettings;
+  prDetails?: Array<{
+    number: number;
+    body?: string;
+    files?: string[];
+  }>;
+}
+
 const BASE_SYSTEM = [
   "You are an assistant that writes crisp, factual release-note snippets.",
   "Always respond with a strict JSON object: {\"text\": string}.",
@@ -151,6 +166,145 @@ export function getHowToAccessPrompt(input: PromptInput): PromptMessage {
     guidance: [
       "Use meta.access, notes, or PR descriptions for activation steps.",
       "If that information is missing, return \"[Needs to be filled in]\".",
+    ].join(" "),
+    input,
+  });
+}
+
+// Helper functions for summary prompts with tone ------------------------------
+
+function getToneGuidance(tone: ToneSettings): string {
+  const guidance: string[] = [];
+
+  // Concise vs Detailed
+  if (tone.conciseDetailed < 30) {
+    guidance.push("Be very concise - use short sentences and bullet points.");
+  } else if (tone.conciseDetailed > 70) {
+    guidance.push("Provide detailed explanations with context and examples.");
+  } else {
+    guidance.push("Balance brevity with necessary detail.");
+  }
+
+  // Playful vs Formal
+  if (tone.playfulFormal < 30) {
+    guidance.push("Use a casual, friendly tone - it's okay to be conversational.");
+  } else if (tone.playfulFormal > 70) {
+    guidance.push("Maintain a formal, professional tone throughout.");
+  } else {
+    guidance.push("Use a professional but approachable tone.");
+  }
+
+  // Technical vs Lay
+  if (tone.technicalLay < 30) {
+    guidance.push("Use technical terminology and implementation details freely.");
+  } else if (tone.technicalLay > 70) {
+    guidance.push("Avoid jargon - explain in plain language accessible to non-technical readers.");
+  } else {
+    guidance.push("Balance technical accuracy with accessibility.");
+  }
+
+  return guidance.join(" ");
+}
+
+function createSummaryPrompt({
+  task,
+  guidance,
+  input,
+}: {
+  task: string;
+  guidance?: string;
+  input: SummaryPromptInput;
+}): PromptMessage {
+  const contextSnapshot = formatContextSnapshot(input.context, input.coreSummary);
+  const prsSnapshot = formatPrSnapshot(input.prs);
+
+  const userSections = [
+    "=== Release Context (JSON) ===",
+    JSON.stringify(contextSnapshot, null, 2),
+    "",
+    "=== Pull Requests (JSON) ===",
+    JSON.stringify(prsSnapshot, null, 2),
+  ];
+
+  // Add PR details if available
+  if (input.prDetails && input.prDetails.length > 0) {
+    userSections.push("", "=== PR Details ===");
+    input.prDetails.forEach((detail) => {
+      userSections.push(`\nPR #${detail.number}:`);
+      if (detail.body) {
+        userSections.push(`Description: ${detail.body}`);
+      }
+      if (detail.files && detail.files.length > 0) {
+        userSections.push(`Files changed: ${detail.files.join(", ")}`);
+      }
+    });
+  }
+
+  userSections.push("", "=== Task ===", task);
+
+  const toneGuidance = getToneGuidance(input.tone);
+  const allGuidance = [toneGuidance];
+  if (guidance) {
+    allGuidance.push(guidance);
+  }
+
+  userSections.push("", "=== Guidance ===", allGuidance.join(" "));
+
+  return {
+    system: "You are an assistant that writes crisp, factual release-note snippets. Always respond with a strict JSON object: {\"text\": string}. If the available information is insufficient or low-confidence, set text to \"Not enough information\". Keep tone professional and audience-appropriate.",
+    user: userSections.join("\n"),
+  };
+}
+
+// Summary field prompt builders -----------------------------------------------
+
+export function getTechnicalSummaryPrompt(input: SummaryPromptInput): PromptMessage {
+  return createSummaryPrompt({
+    task: "Write a comprehensive technical summary of the changes in this release.",
+    guidance: [
+      "Include PR numbers, titles, and key technical changes from the code.",
+      "Mention notable files changed, implementation approach, or architectural decisions when available.",
+      "Reference specific components, APIs, or systems affected.",
+      "If PR details are insufficient to write a meaningful summary, return \"Not enough information\".",
+    ].join(" "),
+    input,
+  });
+}
+
+export function getUserFacingValuePrompt(input: SummaryPromptInput): PromptMessage {
+  return createSummaryPrompt({
+    task: "Explain the user-facing value of this release in 2-3 sentences.",
+    guidance: [
+      "Focus on the benefits and improvements users will experience.",
+      "Answer: What problem does this solve? What can users now do?",
+      "Avoid technical jargon unless the tone settings indicate a technical audience.",
+      "If you cannot determine clear user value, return \"Not enough information\".",
+    ].join(" "),
+    input,
+  });
+}
+
+export function getWhatChangedSummaryPrompt(input: SummaryPromptInput): PromptMessage {
+  return createSummaryPrompt({
+    task: "List what changed in this release as a concise summary or bullet points.",
+    guidance: [
+      "Focus on the specific features, fixes, or improvements delivered.",
+      "Use bullet points (prefixed with '- ') if multiple distinct changes.",
+      "Keep each point brief - this is meant to be scannable.",
+      "If there's insufficient detail about changes, return \"Not enough information\".",
+    ].join(" "),
+    input,
+  });
+}
+
+export function getWhyNowSummaryPrompt(input: SummaryPromptInput): PromptMessage {
+  return createSummaryPrompt({
+    task: "Explain why this release is being shipped now in 1-2 sentences.",
+    guidance: [
+      "Look for timing cues in PR labels, descriptions, or context.",
+      "Consider: customer feedback, market timing, dependencies, or strategic priorities.",
+      "This should provide business/product context, not just 'it was ready'.",
+      "If timing rationale is unclear or absent, return \"Not enough information\".",
     ].join(" "),
     input,
   });

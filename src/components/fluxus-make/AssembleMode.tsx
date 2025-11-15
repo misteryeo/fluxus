@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ReleaseHeader } from './ReleaseHeader';
 import { SourcePanel } from './SourcePanel';
-import { SummaryPanel } from './SummaryPanel';
+import { SummaryPanel, type ToneSettings } from './SummaryPanel';
 import { AudiencePanel } from './AudiencePanel';
 import { ReviewPanel } from './ReviewPanel';
 import { PublishPanel } from './PublishPanel';
@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { ScrollArea } from '../ui/scroll-area';
 import { PR, Asset } from '../../types';
 import { toast } from 'sonner';
-import { useDrafts, useReview } from '@/hooks/useFluxusMake';
+import { useDrafts, useReview, useSummaryGeneration } from '@/hooks/useFluxusMake';
 
 interface AssembleModeProps {
   selectedPRs?: PR[];
@@ -26,6 +26,19 @@ export function AssembleMode({ selectedPRs = [], assets, onRemoveAsset, onUpload
   const generatedSummaryRef = useRef('');
   const { drafts, regenerate } = useDrafts();
   const { state: reviewState, act: reviewAct } = useReview();
+  const { generate: generateSummary, loading: isGeneratingSummary } = useSummaryGeneration();
+
+  // Summary fields state
+  const [userFacingValue, setUserFacingValue] = useState('');
+  const [whatChanged, setWhatChanged] = useState('');
+  const [whyNow, setWhyNow] = useState('');
+
+  // Tone settings state
+  const [toneSettings, setToneSettings] = useState<ToneSettings>({
+    conciseDetailed: 50,
+    playfulFormal: 40,
+    technicalLay: 60
+  });
 
   useEffect(() => {
     const summary = selectedPRs
@@ -38,7 +51,33 @@ export function AssembleMode({ selectedPRs = [], assets, onRemoveAsset, onUpload
       return shouldUpdate ? summary : prev;
     });
   }, [selectedPRs]);
-  
+
+  // Handle summary generation
+  const handleGenerateSummary = async () => {
+    if (selectedPRs.length === 0) {
+      toast.error('Please select at least one PR');
+      return;
+    }
+
+    try {
+      const result = await generateSummary(selectedPRs, toneSettings);
+
+      // Update all fields with generated content
+      setCoreSummary(result.technicalSummary);
+      setUserFacingValue(result.userFacingValue);
+      setWhatChanged(result.whatChanged);
+      setWhyNow(result.whyNow);
+
+      // Switch to summary tab to show results
+      setActiveStep('summary');
+
+      toast.success('Summary generated successfully!');
+    } catch (error) {
+      toast.error('Failed to generate summary');
+      console.error('Summary generation error:', error);
+    }
+  };
+
   // Map review status to release status
   const releaseStatus = (reviewState.status === 'draft' ? 'draft' :
     reviewState.status === 'in-review' ? 'in-review' :
@@ -186,6 +225,8 @@ export function AssembleMode({ selectedPRs = [], assets, onRemoveAsset, onUpload
                     assets={assets}
                     onRemoveAsset={onRemoveAsset}
                     onUploadAsset={onUploadAsset}
+                    onGenerateSummary={handleGenerateSummary}
+                    isGenerating={isGeneratingSummary}
                   />
                 </div>
               </TabsContent>
@@ -203,7 +244,16 @@ export function AssembleMode({ selectedPRs = [], assets, onRemoveAsset, onUpload
                   <SummaryPanel
                     coreSummary={coreSummary}
                     onChangeCoreSummary={handleCoreSummaryChange}
+                    userFacingValue={userFacingValue}
+                    onChangeUserFacingValue={setUserFacingValue}
+                    whatChanged={whatChanged}
+                    onChangeWhatChanged={setWhatChanged}
+                    whyNow={whyNow}
+                    onChangeWhyNow={setWhyNow}
+                    toneSettings={toneSettings}
+                    onChangeToneSettings={setToneSettings}
                     onRegenerate={handleRegenerate}
+                    prCount={selectedPRs.length}
                   />
                 </div>
               </TabsContent>

@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { Github, Upload, ExternalLink, X } from 'lucide-react';
+import { Github, Upload, ExternalLink, X, Sparkles } from 'lucide-react';
 import { Asset } from '../../types';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -12,11 +12,21 @@ interface SourcePanelProps {
   assets: Asset[];
   onRemoveAsset: (assetId: string) => void;
   onUploadAsset: () => void;
+  onGenerateSummary?: () => void;
+  isGenerating?: boolean;
 }
 
-export function SourcePanel({ selectedPRs = [], assets = [], onRemoveAsset, onUploadAsset }: SourcePanelProps) {
+export function SourcePanel({
+  selectedPRs = [],
+  assets = [],
+  onRemoveAsset,
+  onUploadAsset,
+  onGenerateSummary,
+  isGenerating = false
+}: SourcePanelProps) {
   const prList = Array.isArray(selectedPRs) ? selectedPRs : [];
   const assetList = Array.isArray(assets) ? assets : [];
+  const hasPRs = prList.length > 0;
 
   return (
     <div className="space-y-6">
@@ -127,6 +137,25 @@ export function SourcePanel({ selectedPRs = [], assets = [], onRemoveAsset, onUp
           </button>
         </div>
       </div>
+
+      {onGenerateSummary && (
+        <div className="pt-4 border-t border-neutral-200 dark:border-neutral-700">
+          <Button
+            onClick={onGenerateSummary}
+            disabled={!hasPRs || isGenerating}
+            className="w-full gap-2"
+            size="lg"
+          >
+            <Sparkles className="w-4 h-4" />
+            {isGenerating ? "Generating summary..." : "Generate summary"}
+          </Button>
+          {!hasPRs && (
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-2 text-center">
+              Select PRs above to generate summary
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

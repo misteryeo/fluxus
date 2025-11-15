@@ -13,19 +13,57 @@ import {
   CollapsibleTrigger,
 } from '../ui/collapsible';
 
+export interface ToneSettings {
+  conciseDetailed: number;
+  playfulFormal: number;
+  technicalLay: number;
+}
+
 interface SummaryPanelProps {
   coreSummary: string;
   onChangeCoreSummary: (value: string) => void;
+  userFacingValue?: string;
+  onChangeUserFacingValue?: (value: string) => void;
+  whatChanged?: string;
+  onChangeWhatChanged?: (value: string) => void;
+  whyNow?: string;
+  onChangeWhyNow?: (value: string) => void;
+  toneSettings?: ToneSettings;
+  onChangeToneSettings?: (settings: ToneSettings) => void;
   onRegenerate: () => void;
+  prCount?: number;
 }
 
-export function SummaryPanel({ coreSummary, onChangeCoreSummary, onRegenerate }: SummaryPanelProps) {
+export function SummaryPanel({
+  coreSummary,
+  onChangeCoreSummary,
+  userFacingValue = '',
+  onChangeUserFacingValue,
+  whatChanged = '',
+  onChangeWhatChanged,
+  whyNow = '',
+  onChangeWhyNow,
+  toneSettings: externalToneSettings,
+  onChangeToneSettings,
+  onRegenerate,
+  prCount = 0
+}: SummaryPanelProps) {
   const [showCitations, setShowCitations] = useState(false);
-  const [toneSettings, setToneSettings] = useState({
+  const [internalToneSettings, setInternalToneSettings] = useState<ToneSettings>({
     conciseDetailed: 50,
     playfulFormal: 40,
     technicalLay: 60
   });
+
+  // Use external tone settings if provided, otherwise use internal state
+  const toneSettings = externalToneSettings || internalToneSettings;
+  const handleToneChange = (newSettings: ToneSettings) => {
+    if (onChangeToneSettings) {
+      onChangeToneSettings(newSettings);
+    } else {
+      setInternalToneSettings(newSettings);
+    }
+  };
 
   const tokens = ['{{version}}', '{{feature}}', '{{team}}', '{{date}}', '{{docs_link}}'];
 
@@ -34,7 +72,7 @@ export function SummaryPanel({ coreSummary, onChangeCoreSummary, onRegenerate }:
       <Alert className="bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900">
         <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
         <AlertDescription className="text-blue-900 dark:text-blue-100">
-          AI-generated summary from 2 PRs. Review and edit before generating outputs.
+          AI-generated summary from {prCount} {prCount === 1 ? 'PR' : 'PRs'}. Review and edit before generating outputs.
         </AlertDescription>
       </Alert>
 
@@ -77,7 +115,9 @@ export function SummaryPanel({ coreSummary, onChangeCoreSummary, onRegenerate }:
         </label>
         <Textarea
           className="min-h-[100px] resize-none"
-          defaultValue="Teams can now collaborate seamlessly in the billing dashboard with live cursors and instant updates. No more refreshing or conflicts when multiple people are working together."
+          value={userFacingValue}
+          onChange={(e) => onChangeUserFacingValue?.(e.target.value)}
+          placeholder="Describe the user-facing value of this release..."
         />
       </div>
 
@@ -88,17 +128,21 @@ export function SummaryPanel({ coreSummary, onChangeCoreSummary, onRegenerate }:
           </label>
           <Textarea
             className="min-h-[80px] resize-none"
-            defaultValue="Multi-user real-time collaboration, live cursor tracking, automatic sync"
+            value={whatChanged}
+            onChange={(e) => onChangeWhatChanged?.(e.target.value)}
+            placeholder="List what changed..."
           />
         </div>
-        
+
         <div>
           <label className="text-sm text-neutral-700 dark:text-neutral-300 mb-3 block">
             Why Now
           </label>
           <Textarea
             className="min-h-[80px] resize-none"
-            defaultValue="Customer feedback showed 67% of billing teams have 2+ people managing invoices simultaneously"
+            value={whyNow}
+            onChange={(e) => onChangeWhyNow?.(e.target.value)}
+            placeholder="Explain why now..."
           />
         </div>
       </div>
@@ -161,7 +205,7 @@ export function SummaryPanel({ coreSummary, onChangeCoreSummary, onRegenerate }:
           </div>
           <Slider
             value={[toneSettings.conciseDetailed]}
-            onValueChange={(v) => setToneSettings({ ...toneSettings, conciseDetailed: v[0] })}
+            onValueChange={(v) => handleToneChange({ ...toneSettings, conciseDetailed: v[0] })}
             max={100}
             step={1}
             className="w-full"
@@ -179,7 +223,7 @@ export function SummaryPanel({ coreSummary, onChangeCoreSummary, onRegenerate }:
           </div>
           <Slider
             value={[toneSettings.playfulFormal]}
-            onValueChange={(v) => setToneSettings({ ...toneSettings, playfulFormal: v[0] })}
+            onValueChange={(v) => handleToneChange({ ...toneSettings, playfulFormal: v[0] })}
             max={100}
             step={1}
             className="w-full"
@@ -197,7 +241,7 @@ export function SummaryPanel({ coreSummary, onChangeCoreSummary, onRegenerate }:
           </div>
           <Slider
             value={[toneSettings.technicalLay]}
-            onValueChange={(v) => setToneSettings({ ...toneSettings, technicalLay: v[0] })}
+            onValueChange={(v) => handleToneChange({ ...toneSettings, technicalLay: v[0] })}
             max={100}
             step={1}
             className="w-full"
