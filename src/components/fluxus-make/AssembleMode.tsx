@@ -301,7 +301,11 @@ export function AssembleMode({ selectedPRs = [], assets, onRemoveAsset, onUpload
                       Tailored content for each audience. Edit, customize settings, and copy when ready.
                     </p>
                   </div>
-                  <AudiencePanel onCopyContent={handleCopyContent} drafts={drafts} />
+                  <AudiencePanel
+                    onCopyContent={handleCopyContent}
+                    drafts={drafts}
+                    onRegenerateNeeded={handleRegenerate}
+                  />
                 </div>
               </TabsContent>
 
