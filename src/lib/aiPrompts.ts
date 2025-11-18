@@ -27,10 +27,26 @@ export interface SummaryPromptInput extends PromptInput {
   }>;
 }
 
+export interface SummaryToAudienceInput {
+  technicalSummary: string;
+  userFacingValue: string;
+  whatChanged: string;
+  whyNow: string;
+  prs?: PR[];  // Optional, for reference only (labels, numbers, etc.)
+}
+
 const BASE_SYSTEM = [
   "You are an assistant that writes crisp, factual release-note snippets.",
   "Always respond with a strict JSON object: {\"text\": string}.",
   "If the available information is insufficient or low-confidence, set text to \"[Needs to be filled in]\".",
+  "Keep tone professional and audience-appropriate.",
+].join(" ");
+
+const AUDIENCE_SYSTEM = [
+  "You are an assistant that transforms release summaries into audience-specific content.",
+  "Always respond with a strict JSON object: {\"text\": string}.",
+  "Use the provided release summary fields as your primary source of truth.",
+  "Always generate meaningful content - never return placeholder text.",
   "Keep tone professional and audience-appropriate.",
 ].join(" ");
 
@@ -50,9 +66,13 @@ function formatContextSnapshot(context: TemplateContext, coreSummary: string): u
   return {
     coreSummary,
     summaries: context.summaries,
+    whatChanged: context.whatChanged,
+    whyNow: context.whyNow,
+    userValue: context.userValue,
     meta: context.meta,
     metrics: context.metrics,
     notes: context.notes,
+    compactPRList: context.compactPRList,
   };
 }
 
@@ -305,6 +325,140 @@ export function getWhyNowSummaryPrompt(input: SummaryPromptInput): PromptMessage
       "Consider: customer feedback, market timing, dependencies, or strategic priorities.",
       "This should provide business/product context, not just 'it was ready'.",
       "If timing rationale is unclear or absent, return \"Not enough information\".",
+    ].join(" "),
+    input,
+  });
+}
+
+// Summary-to-Audience prompt builders (used for generating audience-specific content from release summaries) ----
+
+function formatSummarySnapshot(input: SummaryToAudienceInput): unknown {
+  return {
+    technicalSummary: input.technicalSummary,
+    userFacingValue: input.userFacingValue,
+    whatChanged: input.whatChanged,
+    whyNow: input.whyNow,
+    prCount: input.prs?.length || 0,
+    prNumbers: input.prs?.map(pr => `#${pr.number}`).join(", ") || "N/A",
+  };
+}
+
+function createAudiencePrompt({
+  task,
+  guidance,
+  input,
+}: {
+  task: string;
+  guidance?: string;
+  input: SummaryToAudienceInput;
+}): PromptMessage {
+  const summarySnapshot = formatSummarySnapshot(input);
+
+  const userSections = [
+    "=== Release Summary ===",
+    JSON.stringify(summarySnapshot, null, 2),
+    "",
+    "=== Task ===",
+    task,
+  ];
+
+  if (guidance) {
+    userSections.push("", "=== Guidance ===", guidance);
+  }
+
+  return {
+    system: AUDIENCE_SYSTEM,
+    user: userSections.join("\n"),
+  };
+}
+
+export function getRisksFromSummaryPrompt(input: SummaryToAudienceInput): PromptMessage {
+  return createAudiencePrompt({
+    task: "Based on the release summary, identify 1-3 potential risks or limitations.",
+    guidance: [
+      "Use the technical summary and what changed to infer deployment risks.",
+      "Consider: breaking changes, new dependencies, infrastructure impacts, or user migration needs.",
+      "Format as bullet points prefixed with '- '.",
+      "Always generate thoughtful risks based on the summary - even if generic, make them relevant.",
+    ].join(" "),
+    input,
+  });
+}
+
+export function getNextStepsFromSummaryPrompt(input: SummaryToAudienceInput): PromptMessage {
+  return createAudiencePrompt({
+    task: "Based on the release summary, suggest 1-3 concrete next steps for the team or stakeholders.",
+    guidance: [
+      "Consider what naturally follows from the changes described.",
+      "Think about: monitoring, user feedback collection, documentation, or follow-up features.",
+      "Format as bullet points prefixed with '- '.",
+      "Always provide actionable next steps based on the release content.",
+    ].join(" "),
+    input,
+  });
+}
+
+export function getKPIsFromSummaryPrompt(input: SummaryToAudienceInput): PromptMessage {
+  return createAudiencePrompt({
+    task: "Based on the release summary, suggest key KPIs or metrics to track the impact.",
+    guidance: [
+      "Infer relevant metrics from the user-facing value and what changed.",
+      "Consider: adoption rates, performance improvements, error rates, user engagement, or business metrics.",
+      "Format as bullet points prefixed with '- ' or a brief paragraph.",
+      "Always generate relevant KPIs that align with the release goals.",
+    ].join(" "),
+    input,
+  });
+}
+
+export function getNextMilestoneFromSummaryPrompt(input: SummaryToAudienceInput): PromptMessage {
+  return createAudiencePrompt({
+    task: "Based on the release summary, suggest what the next milestone or checkpoint might be.",
+    guidance: [
+      "Think about the natural progression from these changes.",
+      "Consider: GA release, wider rollout, additional features, or follow-up improvements.",
+      "Keep it to 1-2 sentences.",
+      "Generate a reasonable next milestone based on the release scope.",
+    ].join(" "),
+    input,
+  });
+}
+
+export function getWhoGetsItFromSummaryPrompt(input: SummaryToAudienceInput): PromptMessage {
+  return createAudiencePrompt({
+    task: "Based on the release summary, describe who gets access to these changes.",
+    guidance: [
+      "If the summary mentions specific user groups, use that information.",
+      "Otherwise, infer from the scope: is this for all users, beta users, specific customer tiers, or internal only?",
+      "Keep it to 1 sentence.",
+      "Default to 'All users' if the scope seems general, or 'Beta users' if it seems experimental.",
+    ].join(" "),
+    input,
+  });
+}
+
+export function getHowToAccessFromSummaryPrompt(input: SummaryToAudienceInput): PromptMessage {
+  return createAudiencePrompt({
+    task: "Based on the release summary, explain how users can access or use these changes.",
+    guidance: [
+      "If the changes are automatic, say so explicitly.",
+      "If they require user action, describe the steps briefly.",
+      "Consider: UI location, settings toggles, API endpoints, or documentation links.",
+      "Keep it to 1-2 sentences.",
+      "Default to 'Available automatically - no action required' if the summary suggests automatic rollout.",
+    ].join(" "),
+    input,
+  });
+}
+
+export function getWhyNowFromSummaryPrompt(input: SummaryToAudienceInput): PromptMessage {
+  return createAudiencePrompt({
+    task: "Based on the release summary, expand on why this release is being shipped now.",
+    guidance: [
+      "Use the provided 'whyNow' field as your primary source.",
+      "Add context from the user-facing value and what changed if helpful.",
+      "Keep it to 2-3 sentences that provide business and product context.",
+      "Make it compelling and focused on timing/urgency/impact.",
     ].join(" "),
     input,
   });

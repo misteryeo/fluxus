@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ReleaseHeader } from './ReleaseHeader';
 import { SourcePanel } from './SourcePanel';
-import { SummaryPanel, type ToneSettings } from './SummaryPanel';
+import { SummaryPanel } from './SummaryPanel';
 import { AudiencePanel } from './AudiencePanel';
 import { ReviewPanel } from './ReviewPanel';
 import { PublishPanel } from './PublishPanel';
@@ -33,12 +33,14 @@ export function AssembleMode({ selectedPRs = [], assets, onRemoveAsset, onUpload
   const [whatChanged, setWhatChanged] = useState('');
   const [whyNow, setWhyNow] = useState('');
 
-  // Tone settings state
-  const [toneSettings, setToneSettings] = useState<ToneSettings>({
-    conciseDetailed: 50,
-    playfulFormal: 40,
-    technicalLay: 60
-  });
+  // Debug: Log drafts state changes
+  useEffect(() => {
+    console.log('[AssembleMode] Drafts state updated:', {
+      draftKeys: Object.keys(drafts),
+      draftLengths: Object.fromEntries(Object.entries(drafts).map(([key, val]) => [key, val.length])),
+      sampleInternal: drafts.internal?.substring(0, 50) + '...',
+    });
+  }, [drafts]);
 
   useEffect(() => {
     const summary = selectedPRs
@@ -52,7 +54,7 @@ export function AssembleMode({ selectedPRs = [], assets, onRemoveAsset, onUpload
     });
   }, [selectedPRs]);
 
-  // Handle summary generation
+  // Handle summary generation with default tone settings
   const handleGenerateSummary = async () => {
     if (selectedPRs.length === 0) {
       toast.error('Please select at least one PR');
@@ -60,7 +62,13 @@ export function AssembleMode({ selectedPRs = [], assets, onRemoveAsset, onUpload
     }
 
     try {
-      const result = await generateSummary(selectedPRs, toneSettings);
+      // Use default tone settings since we removed the tone sliders
+      const defaultTone = {
+        conciseDetailed: 50,
+        playfulFormal: 40,
+        technicalLay: 60
+      };
+      const result = await generateSummary(selectedPRs, defaultTone);
 
       // Update all fields with generated content
       setCoreSummary(result.technicalSummary);
@@ -93,16 +101,43 @@ export function AssembleMode({ selectedPRs = [], assets, onRemoveAsset, onUpload
   ];
 
   const handleRegenerate = async () => {
+    // Validate that we have PRs
+    if (selectedPRs.length === 0) {
+      toast.error('Please select at least one PR before generating audience outputs');
+      return;
+    }
+
+    // Validate that summary fields have meaningful content
+    const hasValidTechnicalSummary = coreSummary.trim().length > 0 &&
+      coreSummary !== "Not enough information";
+    const hasValidUserValue = userFacingValue.trim().length > 0 &&
+      userFacingValue !== "Not enough information";
+
+    if (!hasValidTechnicalSummary || !hasValidUserValue) {
+      toast.error('Please generate summary fields first by clicking "Generate summary" in Step 1: Source');
+      return;
+    }
+
     try {
       await regenerate({
-        contextInput: { prs: selectedPRs },
+        contextInput: {
+          prs: selectedPRs,
+          summaries: {
+            technical: coreSummary,
+            value: userFacingValue,
+          }
+        },
         coreSummary,
-        tone: { level: 'concise' }
+        userFacingValue,
+        whatChanged,
+        whyNow,
       });
-      
-      toast.success('Regenerating outputs with updated tone settings...');
+
+      toast.success('Generating audience outputs...');
     } catch (error) {
-      toast.error('Failed to regenerate drafts');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate audience outputs';
+      toast.error(errorMessage);
+      console.error('Regenerate error:', error);
     }
   };
 
@@ -238,7 +273,7 @@ export function AssembleMode({ selectedPRs = [], assets, onRemoveAsset, onUpload
                       Release Summary
                     </h2>
                     <p className="text-neutral-600 dark:text-neutral-400">
-                      AI-generated summary from your PRs. Edit and adjust tone before generating audience outputs.
+                      AI-generated summary from your PRs. Review and edit before generating audience outputs.
                     </p>
                   </div>
                   <SummaryPanel
@@ -250,8 +285,6 @@ export function AssembleMode({ selectedPRs = [], assets, onRemoveAsset, onUpload
                     onChangeWhatChanged={setWhatChanged}
                     whyNow={whyNow}
                     onChangeWhyNow={setWhyNow}
-                    toneSettings={toneSettings}
-                    onChangeToneSettings={setToneSettings}
                     onRegenerate={handleRegenerate}
                     prCount={selectedPRs.length}
                   />

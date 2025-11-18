@@ -121,33 +121,47 @@ function resolvePath(obj: Record<string, unknown>, path: string): unknown {
  * Compile a template string with context and helpers
  */
 export function compile(
-  template: string, 
-  ctx: TemplateContext, 
+  template: string,
+  ctx: TemplateContext,
   helpers: Helpers = defaultHelpers
 ): string {
+  console.log('[compile] Called with:', {
+    templatePreview: template.substring(0, 100),
+    ctxType: typeof ctx,
+    ctxKeys: Object.keys(ctx),
+    ctxConstructor: ctx.constructor.name,
+    hasWhyNow: 'whyNow' in ctx,
+    whyNowValue: (ctx as any).whyNow,
+  });
+
   // Match {{ ... }} tokens
   const tokenRegex = /\{\{\s*([^}]+)\s*\}\}/g;
-  
+
   return template.replace(tokenRegex, (match, expression) => {
+    expression = expression.trim(); // FIX: Remove leading/trailing whitespace
+    console.log(`[compile] Processing token: "${expression}"`);
+
     try {
       // Handle helper functions: helperName(arg1, arg2, ...)
       const helperMatch = expression.match(/^(\w+)\((.*)\)$/);
-      
+
       if (helperMatch) {
+        console.log(`[compile] Helper match detected: ${helperMatch[1]}`);
         const [, helperName, argsStr] = helperMatch;
         const helper = helpers[helperName as keyof Helpers];
-        
+
         if (!helper) {
+          console.log(`[compile] Unknown helper: ${helperName}`);
           return `[UNKNOWN: ${helperName}]`;
         }
-        
+
         // Parse arguments (simple comma split, no nested parentheses)
         const args = argsStr
           .split(',')
           .map(arg => arg.trim())
           .map(arg => {
             // Remove quotes if present
-            if ((arg.startsWith('"') && arg.endsWith('"')) || 
+            if ((arg.startsWith('"') && arg.endsWith('"')) ||
                 (arg.startsWith("'") && arg.endsWith("'"))) {
               return arg.slice(1, -1);
             }
@@ -157,20 +171,32 @@ export function compile(
             }
             return arg;
           });
-        
+
         const result = helper(...args);
+        console.log(`[compile] Helper result:`, result);
         return String(result || '[TBD]');
       }
-      
+
       // Handle simple path resolution: summaries.technical
+      console.log(`[compile] Resolving path: "${expression}"`);
       const value = resolvePath(ctx, expression);
-      
+      console.log(`[compile] resolvePath returned:`, {
+        type: typeof value,
+        value: typeof value === 'string' ? value.substring(0, 100) : value,
+        isUndefined: value === undefined,
+        isNull: value === null,
+        isEmpty: value === '',
+      });
+
       if (value === undefined || value === null || value === '') {
+        console.log(`[compile] Returning [TBD] for "${expression}"`);
         return '[TBD]';
       }
-      
-      return String(value);
-      
+
+      const result = String(value);
+      console.log(`[compile] Returning string result (length ${result.length})`);
+      return result;
+
     } catch (error) {
       console.warn(`Template compilation error for "${expression}":`, error);
       return `[UNKNOWN: ${expression}]`;
@@ -192,6 +218,7 @@ export function compileWithDiagnostics(
   const tokenRegex = /\{\{\s*([^}]+)\s*\}\}/g;
   
   const text = template.replace(tokenRegex, (match, expression) => {
+    expression = expression.trim(); // FIX: Remove leading/trailing whitespace
     try {
       // Handle helper functions: helperName(arg1, arg2, ...)
       const helperMatch = expression.match(/^(\w+)\((.*)\)$/);

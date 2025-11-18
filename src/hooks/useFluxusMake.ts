@@ -95,6 +95,9 @@ type DraftContextInput = {
 export interface DraftRegenerateArgs {
   contextInput?: DraftContextInput;
   coreSummary?: string;
+  userFacingValue?: string;
+  whatChanged?: string;
+  whyNow?: string;
   tone?: Record<string, unknown>;
   audiences?: string[];
   templates?: Record<string, DraftTemplateOverride>;
@@ -123,9 +126,6 @@ function mapDraftsForUI(drafts: Record<string, string>): Record<string, string> 
     if (!normalized.linkedin) {
       normalized.linkedin = drafts.public;
     }
-    if (!normalized.email) {
-      normalized.email = drafts.public;
-    }
   }
 
   return normalized;
@@ -145,25 +145,53 @@ export function useDrafts() {
   const regenerate = useCallback(async (args: DraftRegenerateArgs) => {
     const payload = sanitizeDraftRegenerateArgs(args);
 
-    const res = await fetch("/api/drafts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    try {
+      const res = await fetch("/api/drafts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-    if (!res.ok) {
-      const errorBody = await safeParseJSON(res);
-      const message =
-        typeof errorBody?.error === "string"
-          ? errorBody.error
-          : `Failed to regenerate drafts (status ${res.status})`;
-      throw new Error(message);
+      if (!res.ok) {
+        const errorBody = await safeParseJSON(res);
+        const message =
+          typeof errorBody?.error === "string"
+            ? errorBody.error
+            : res.status === 500
+            ? "Server error while generating outputs. Please check console logs for details."
+            : res.status === 401 || res.status === 403
+            ? "Authentication error. Please check your API credentials."
+            : res.status === 429
+            ? "Rate limit exceeded. Please wait a moment and try again."
+            : `Failed to regenerate drafts (status ${res.status})`;
+        throw new Error(message);
+      }
+
+      const data = (await res.json()) as DraftsResponse;
+      console.log('[useDrafts] Received API response:', {
+        hasDrafts: !!data?.drafts,
+        draftKeys: data?.drafts ? Object.keys(data.drafts) : [],
+        draftLengths: data?.drafts ? Object.fromEntries(Object.entries(data.drafts).map(([key, val]) => [key, val.length])) : {},
+      });
+
+      const draftsForUI = data?.drafts ? mapDraftsForUI(data.drafts) : {};
+      console.log('[useDrafts] After mapping for UI:', {
+        mappedKeys: Object.keys(draftsForUI),
+        mappedLengths: Object.fromEntries(Object.entries(draftsForUI).map(([key, val]) => [key, val.length])),
+        sampleInternal: draftsForUI.internal?.substring(0, 50) + '...',
+      });
+
+      setDrafts(draftsForUI);
+      console.log('[useDrafts] State updated with drafts');
+
+      return { ...data, drafts: draftsForUI };
+    } catch (error) {
+      // Re-throw with better context if it's a network error
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new Error("Network error. Please check your internet connection and try again.");
+      }
+      throw error;
     }
-
-    const data = (await res.json()) as DraftsResponse;
-    const draftsForUI = data?.drafts ? mapDraftsForUI(data.drafts) : {};
-    setDrafts(draftsForUI);
-    return { ...data, drafts: draftsForUI };
   }, []);
 
   return { drafts, regenerate };

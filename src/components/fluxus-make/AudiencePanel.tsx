@@ -6,11 +6,11 @@ import { Button } from '../ui/button';
 import { Switch } from '../ui/switch';
 import { Badge } from '../ui/badge';
 import { Textarea } from '../ui/textarea';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface AudiencePanelProps {
   onCopyContent: (audience: string) => void;
-  drafts?: Partial<Record<'internal'|'customers'|'changelog'|'linkedin'|'email'|'investor', string>>;
+  drafts?: Partial<Record<'internal'|'customers'|'changelog'|'linkedin'|'investor', string>>;
 }
 
 export function AudiencePanel({ onCopyContent, drafts }: AudiencePanelProps) {
@@ -22,9 +22,20 @@ export function AudiencePanel({ onCopyContent, drafts }: AudiencePanelProps) {
     cta: true
   });
 
+  // Debug: Log drafts prop changes
+  useEffect(() => {
+    console.log('[AudiencePanel] Received drafts prop:', {
+      hasDrafts: !!drafts,
+      draftKeys: drafts ? Object.keys(drafts) : [],
+      draftLengths: drafts ? Object.fromEntries(Object.entries(drafts).map(([key, val]) => [key, val?.length || 0])) : {},
+      sampleInternal: drafts?.internal?.substring(0, 100),
+      sampleCustomers: drafts?.customers?.substring(0, 100),
+    });
+  }, [drafts]);
+
   const handleCopy = (audience: string) => {
     // Map 'investors' to 'investor' for drafts key
-    const draftKey = audience === 'investors' ? 'investor' : audience as 'internal'|'customers'|'changelog'|'linkedin'|'email'|'investor';
+    const draftKey = audience === 'investors' ? 'investor' : audience as 'internal'|'customers'|'changelog'|'linkedin'|'investor';
     const content = drafts?.[draftKey] ?? '';
     navigator.clipboard.writeText(content);
     setCopied(audience);
@@ -37,7 +48,6 @@ export function AudiencePanel({ onCopyContent, drafts }: AudiencePanelProps) {
     { id: 'customers', label: 'Customers', count: 245 },
     { id: 'changelog', label: 'Changelog', count: 512 },
     { id: 'linkedin', label: 'LinkedIn', count: 2847, limit: 3000 },
-    { id: 'email', label: 'Email', count: 423 },
     { id: 'investors', label: 'Investors', count: 289 }
   ];
 
@@ -45,7 +55,7 @@ export function AudiencePanel({ onCopyContent, drafts }: AudiencePanelProps) {
     <div>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="flex items-center justify-between mb-4">
-          <TabsList className="grid grid-cols-6 w-auto">
+          <TabsList className="grid grid-cols-5 w-auto">
             {audiences.map((audience) => (
               <TabsTrigger key={audience.id} value={audience.id} className="gap-2">
                 {audience.label}
@@ -71,9 +81,19 @@ export function AudiencePanel({ onCopyContent, drafts }: AudiencePanelProps) {
         </div>
 
         {audiences.map((audience) => {
-          const draftKey = audience.id === 'investors' ? 'investor' : audience.id as 'internal'|'customers'|'changelog'|'linkedin'|'email'|'investor';
+          const draftKey = audience.id === 'investors' ? 'investor' : audience.id as 'internal'|'customers'|'changelog'|'linkedin'|'investor';
           const content = drafts?.[draftKey] ?? '';
           const charCount = content.length;
+
+          // Debug: Log content for each audience
+          if (activeTab === audience.id) {
+            console.log(`[AudiencePanel] Rendering ${audience.id} tab:`, {
+              draftKey,
+              hasContent: !!content,
+              contentLength: content.length,
+              contentPreview: content.substring(0, 150) + '...',
+            });
+          }
           
           return (
           <TabsContent key={audience.id} value={audience.id} className="space-y-4">
