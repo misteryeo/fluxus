@@ -6,17 +6,20 @@ import { Button } from '../ui/button';
 import { Switch } from '../ui/switch';
 import { Badge } from '../ui/badge';
 import { Textarea } from '../ui/textarea';
+import { TemplateEditorModal } from './TemplateEditorModal';
 import { useState, useEffect } from 'react';
 
 interface AudiencePanelProps {
   onCopyContent: (audience: string) => void;
   drafts?: Partial<Record<'internal'|'customers'|'changelog'|'linkedin'|'investor', string>>;
+  onRegenerateNeeded?: () => Promise<void>;
 }
 
-export function AudiencePanel({ onCopyContent, drafts }: AudiencePanelProps) {
+export function AudiencePanel({ onCopyContent, drafts, onRegenerateNeeded }: AudiencePanelProps) {
   const [activeTab, setActiveTab] = useState('internal');
   const [copied, setCopied] = useState<string | null>(null);
   const [showDiff, setShowDiff] = useState(false);
+  const [isTemplateEditorOpen, setIsTemplateEditorOpen] = useState(false);
   const [audienceSettings, setAudienceSettings] = useState({
     emojis: true,
     cta: true
@@ -73,7 +76,12 @@ export function AudiencePanel({ onCopyContent, drafts }: AudiencePanelProps) {
               <Diff className="w-4 h-4" />
               {showDiff ? 'Hide' : 'Show'} diff
             </Button>
-            <Button variant="outline" size="sm" className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => setIsTemplateEditorOpen(true)}
+            >
               <Settings2 className="w-4 h-4" />
               Settings
             </Button>
@@ -179,6 +187,18 @@ export function AudiencePanel({ onCopyContent, drafts }: AudiencePanelProps) {
           );
         })}
       </Tabs>
+
+      <TemplateEditorModal
+        isOpen={isTemplateEditorOpen}
+        onClose={() => setIsTemplateEditorOpen(false)}
+        onSave={async () => {
+          // Auto-regenerate audience outputs with new templates
+          if (onRegenerateNeeded) {
+            await onRegenerateNeeded();
+          }
+          setIsTemplateEditorOpen(false);
+        }}
+      />
     </div>
   );
 }

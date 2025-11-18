@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { compile as renderTemplate, type TemplateContext } from "@/lib/templateEngine";
-import { getDefaultTemplates as defaultTemplates } from "@/lib/defaultTemplates";
+import { getEffectiveTemplates } from "@/lib/templateStorage";
 import { buildContext } from "@/utils/buildContext";
 import type { PR } from "@/types";
 import {
@@ -187,7 +187,7 @@ export async function POST(req: Request) {
     testResolvePath(ctxWithAI as any, 'whyNow');
 
     const target = audiences ?? ["internal", "customers", "changelog", "linkedin", "investor"];
-    const templates = defaultTemplates();
+    const templates = await getEffectiveTemplates();
     const drafts: Record<string, string> = {};
 
     for (const a of target) {
